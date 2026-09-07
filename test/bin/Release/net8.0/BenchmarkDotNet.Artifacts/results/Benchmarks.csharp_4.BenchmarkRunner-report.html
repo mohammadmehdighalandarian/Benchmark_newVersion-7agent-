@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Benchmarks.csharp_4.BenchmarkRunner-20260613-010912</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.8246/25H2/2025Update/HudsonValley2)
+Intel Core i5-8250U CPU 1.60GHz (Max: 1.80GHz) (Kaby Lake R), 1 CPU, 8 logical and 4 physical cores
+.NET SDK 9.0.100
+  [Host]     : .NET 8.0.11 (8.0.11, 8.0.1124.51707), X64 RyuJIT x86-64-v3 [AttachedDebugger]
+  DefaultJob : .NET 8.0.11 (8.0.11, 8.0.1124.51707), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method</th><th>N</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>Mistral</td><td>10</td><td>35.00 ns</td><td>0.251 ns</td><td>0.446 ns</td><td>0.79</td><td>0.17</td><td>1</td><td>-</td><td>NA</td>
+</tr><tr><td>DeepSeek</td><td>10</td><td>35.06 ns</td><td>0.224 ns</td><td>0.209 ns</td><td>0.79</td><td>0.17</td><td>1</td><td>-</td><td>NA</td>
+</tr><tr><td>Llama</td><td>10</td><td>37.38 ns</td><td>0.278 ns</td><td>0.309 ns</td><td>0.84</td><td>0.18</td><td>2</td><td>-</td><td>NA</td>
+</tr><tr><td>Claude</td><td>10</td><td>38.02 ns</td><td>0.796 ns</td><td>1.983 ns</td><td>0.86</td><td>0.19</td><td>2</td><td>-</td><td>NA</td>
+</tr><tr><td>Gemini</td><td>10</td><td>40.03 ns</td><td>0.858 ns</td><td>2.433 ns</td><td>0.90</td><td>0.20</td><td>2</td><td>-</td><td>NA</td>
+</tr><tr><td>Grok</td><td>10</td><td>43.12 ns</td><td>1.573 ns</td><td>4.563 ns</td><td>0.97</td><td>0.24</td><td>2</td><td>-</td><td>NA</td>
+</tr><tr><td>GPT</td><td>10</td><td>46.67 ns</td><td>3.525 ns</td><td>10.393 ns</td><td>1.05</td><td>0.33</td><td>2</td><td>-</td><td>NA</td>
+</tr><tr><td>Mistral</td><td>100</td><td>213.09 ns</td><td>0.610 ns</td><td>0.541 ns</td><td>0.96</td><td>0.00</td><td>1</td><td>-</td><td>NA</td>
+</tr><tr><td>Grok</td><td>100</td><td>214.46 ns</td><td>0.662 ns</td><td>0.619 ns</td><td>0.97</td><td>0.00</td><td>1</td><td>-</td><td>NA</td>
+</tr><tr><td>Claude</td><td>100</td><td>214.51 ns</td><td>3.207 ns</td><td>2.843 ns</td><td>0.97</td><td>0.01</td><td>1</td><td>-</td><td>NA</td>
+</tr><tr><td>DeepSeek</td><td>100</td><td>215.10 ns</td><td>1.542 ns</td><td>1.514 ns</td><td>0.97</td><td>0.01</td><td>1</td><td>-</td><td>NA</td>
+</tr><tr><td>Gemini</td><td>100</td><td>218.71 ns</td><td>0.690 ns</td><td>0.645 ns</td><td>0.99</td><td>0.00</td><td>1</td><td>-</td><td>NA</td>
+</tr><tr><td>GPT</td><td>100</td><td>221.29 ns</td><td>0.811 ns</td><td>0.719 ns</td><td>1.00</td><td>0.00</td><td>1</td><td>-</td><td>NA</td>
+</tr><tr><td>Llama</td><td>100</td><td>231.66 ns</td><td>4.673 ns</td><td>9.223 ns</td><td>1.05</td><td>0.04</td><td>1</td><td>-</td><td>NA</td>
+</tr></tbody></table>
+</body>
+</html>

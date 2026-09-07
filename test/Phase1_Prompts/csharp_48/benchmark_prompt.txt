@@ -1,0 +1,60 @@
+Role:
+You are an expert C# Performance Architect specializing in BenchmarkDotNet.
+
+Objective:
+I will provide a JSON object describing a coding problem. Your task is to write a BenchmarkRunner class that tests 4 existing solutions (GPT, Gemini, Claude, Grok) against each other.
+
+Input JSON Fields:
+
+    task_id: Unique ID (e.g., "csharp/0").
+
+    entry_point: The method name to call (e.g., "BelowZero").
+
+    prompt: Contains the method signature and types.
+
+    description: The logic of the problem.
+
+Strict Implementation Rules:
+
+    Namespace Naming:
+
+        You must sanitize task_id. Replace /, -, and spaces with _.
+
+        Example: csharp/0 becomes csharp_0.
+
+        The namespace must be: Benchmarks.{task_id_sanitized}
+
+    Class & Attributes:
+
+        Class name: public class BenchmarkRunner
+
+        Attributes: [MemoryDiagnoser], [RankColumn], [Orderer(SummaryOrderPolicy.FastestToSlowest)]
+
+        Params: [Params(100, 1000, 10000)] public int N { get; set; }
+
+    Data Generation ([GlobalSetup]):
+
+        CRITICAL: Analyze the description and entry_point. You must generate Worst-Case Scenario data.
+
+        Why? If the code exits early (e.g., finds a value in index 0), the benchmark will show 0ns.
+
+        Instruction: Create data that forces the solver to process the entire N items.
+
+        Example: If the problem is "Return true if sum < 0", generate a list that stays positive until the very last item.
+
+    The Benchmark Methods:
+
+        You must define exactly 4 methods: GPT, Gemini, Claude, Grok.
+
+        GPT must have [Benchmark(Baseline = true)].
+
+        The methods must return the result (do not use void) to prevent JIT optimization.
+
+        Calling Convention: You must call the solvers using this exact fully qualified name pattern:
+        return Benchmarks.{task_id_sanitized}.{AI_NAME}.Solver.{entry_point}(_data);
+
+Input JSON:
+"{"task_id":"csharp/48","prompt":"using System;\nusing System.Collections.Generic;\nusing System.Linq;\nusing System.Text.RegularExpressions;\nusing KellermanSoftware.CompareNetObjects;\n\nnamespace Solution\n{\n    public class Program\n    {\n        /// \u003Csummary\u003E \n        /// You\u0027re an expert C# programmer\n        /// \n        /// Given a positive integer n, return a tuple that has the number of even and odd\n        /// integer palindromes that fall within the range(1, n), inclusive.\n        /// \n        /// Example 1:\n        /// \n        /// Input: 3\n        /// Output: (1, 2)\n        /// Explanation:\n        /// Integer palindrome are 1, 2, 3. one of them is even, and two of them are odd.\n        /// \n        /// Example 2:\n        /// \n        /// Input: 12\n        /// Output: (4, 6)\n        /// Explanation:\n        /// Integer palindrome are 1, 2, 3, 4, 5, 6, 7, 8, 9, 11. four of them are even, and 6 of them are odd.\n        /// \n        /// Note:\n        /// 1. 1 \u003C= n \u003C= 10^3\n        /// 2. returned tuple has the number of even and odd integer palindromes respectively.\n        /// \n        /// \u003C/summary\u003E\n        public static List\u003Cint\u003E EvenOddPalindrome (int n) \n        {","entry_point":"EvenOddPalindrome","description":"\nGiven a positive integer n, return a tuple that has the number of even and odd\ninteger palindromes that fall within the range(1, n), inclusive.\n\nExample 1:\n\nInput: 3\nOutput: (1, 2)\nExplanation:\nInteger palindrome are 1, 2, 3. one of them is even, and two of them are odd.\n\nExample 2:\n\nInput: 12\nOutput: (4, 6)\nExplanation:\nInteger palindrome are 1, 2, 3, 4, 5, 6, 7, 8, 9, 11. four of them are even, and 6 of them are odd.\n\nNote:\n1. 1 \u003C= n \u003C= 10^3\n2. returned tuple has the number of even and odd integer palindromes respectively.\n"}"
+
+Output:
+Provide ONLY the C# code. Do not include markdown code blocks or explanations.

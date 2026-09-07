@@ -1,0 +1,136 @@
+HOW THE CODE EVALUATION WORKS — STEP BY STEP
+
+This program takes C# solutions written by 7 different AI models (GPT, Gemini,
+Claude, Grok, Mistral, DeepSeek, Llama) and scores each one across three areas —
+Correctness, Efficiency, and Quality — then saves everything into an Excel file
+called evaluation_results.xlsx.
+
+It runs in three phases:
+
+STEP 1 — CORRECTNESS (does the code actually work?)
+For each task and each model, the program runs the AI's code against a set of
+test cases. It counts how many tests passed and how many failed, then calculates
+a success rate as a percentage (passed divided by total, times 100).
+
+STEP 2 — STATIC ANALYSIS (how is the code written?)
+The program compiles each solution in memory using Roslyn (Microsoft's C#
+analyzer). First it checks: does it even compile? If it does not compile, the row
+is flagged as "Excluded" instead of being given a fake zero, so it does not
+unfairly drag down the model's average. Then, whether or not it compiled, it
+measures code-quality metrics: cyclomatic complexity, cognitive complexity,
+nesting depth, naming-convention violations, and a professionalism score. A
+separate SonarQube-style analyzer also runs on the same code for additional
+quality metrics.
+
+STEP 3 — EFFICIENCY (how fast and memory-light is the code?)
+The program runs each solution through BenchmarkDotNet, a professional
+benchmarking tool, to measure the real median execution time (in nanoseconds) and
+how much memory it allocates (in bytes). This phase is resumable — it saves a
+checkpoint after each task, so if it is interrupted it continues from where it
+stopped.
+
+SCORING
+All the measurements above are combined by a central scoring engine. Each metric
+is normalized to a 0-to-1 scale, then turned into three independent scores
+(Correctness, Efficiency, Quality) plus one overall Composite score. Simpler,
+faster, cleaner code scores higher. If a solution has no benchmark data, the
+performance part is left out of the score instead of counting as zero.
+
+SAVING
+Results are written to Excel in two passes: first the correctness and quality
+data, then the benchmark data updates the speed/memory/efficiency columns for
+each row.
+
+
+WHAT EACH EXCEL COLUMN MEANS
+
+1.  Task ID — which programming problem this row is for.
+2.  AI Model — which AI wrote this solution (GPT, Gemini, Claude, etc.).
+3.  Correctness (%) — percentage of test cases the code passed (0–100).
+4.  Efficiency Score — speed score from 0 to 100 (faster code = higher score).
+5.  Quality Score — code-quality score from 0 to 100, based on complexity,
+    nesting, and naming (does NOT include correctness).
+6.  Composite Score — the overall combined score from 0 to 100 (correctness +
+    quality + efficiency together).
+7.  Time (ns) — real median execution time in nanoseconds, from BenchmarkDotNet.
+8.  Memory (Bytes) — how much memory the code allocated per run.
+9.  Complexity — cyclomatic complexity (number of decision points/branches;
+    lower is simpler).
+10. Cognitive Cx — cognitive complexity (how hard the code is for a human to
+    read; penalizes deep nesting).
+11. Nesting — the maximum depth of nested loops/if-statements (lower is better).
+12. Naming Violations — count of variables/methods that break C# naming
+    conventions.
+13. Professionalism — a 0–3 score: +1 for documentation, +1 for null/input
+    checks, +1 for using LINQ/standard library.
+14. Excluded — TRUE if the code did not compile (so it is left out of averages).
+15. Exclusion Reason — why it was excluded (e.g. "did-not-compile").
+16. SQ Total Issues — total number of issues found by the SonarQube-style
+    analyzer.
+17. SQ Errors — most severe issues (Blocker/Critical).
+18. SQ Warnings — medium-severity issues (Major).
+19. SQ Info — minor issues (Info/Minor).
+20. SQ Tech Debt (min) — estimated minutes needed to fix all the issues
+    ("technical debt").
+21. SQ Maintainability — a letter rating (A–E) for how maintainable the code is.
+22. SQ Reliability — a letter rating (A–E) for how reliable/bug-free the code is.
+23. SQ Rules — the list of specific analyzer rules that were triggered.
+
+RUNNING THE PIPELINE
+
+Each phase has a name that can be invoked from the command line, so the pipeline
+can be re-run without editing and recompiling Program. Running with no command
+keeps the previous behaviour: benchmarks only.
+
+  test prompts [workbook] [outDir]
+      Phase 1. Reads the task spreadsheet, builds both prompts for every task
+      from the templates in PromptTemplates.cs, and writes one directory per
+      task containing solution_prompt.txt, benchmark_prompt.txt and input.json,
+      plus a manifest.tsv holding a SHA-256 of each prompt.
+
+  test verify-prompts [workbook]
+      Rebuilds all 160 prompts from the templates and compares them byte for
+      byte against the prompts stored per row in the workbook. This is the
+      evidence that the templates in source control are the ones that were
+      actually used. Current result: 160 of 160 reproduced exactly.
+
+  test audit-assertions [workbook] [testsDir]
+      Counts the assertions in each task's source test field and compares them
+      with the instrumented assertions that survived into the generated test
+      file. A shortfall would mean correctness was computed over a reduced
+      denominator. Current result: 677 in source, 677 instrumented, 0 lost.
+
+  test correctness
+      Phases 1 and 2: the reflection test runner, the Roslyn static metrics and
+      the SonarAnalyzer pass. Recreates the results workbook from scratch.
+
+  test benchmark
+      Phase 3: BenchmarkDotNet, incremental and resumable. This is the default.
+
+  test export-tsv [xlsx] [tsv]
+      Phase 4: writes the TSV directly from the results workbook, replacing the
+      manual export from Excel. Numbers are written with the round-trip format,
+      so no precision is lost; tabs, newlines and backslashes inside a value are
+      escaped so a compiler diagnostic cannot break column alignment.
+
+  test all
+      correctness, then benchmark, then export-tsv.
+
+There is deliberately no command that regenerates the .cs corpus. Doing so would
+overwrite the 80 shipped solver, test and benchmark files, and the two
+generators on disk disagree about the output format: SolutionWriter produced the
+shipped corpus, SolutionExport emits a different shape. Regeneration should stay
+a deliberate act, not a convenient one.
+
+WHERE THE TASK SPREADSHEET IS
+
+It is not in this repository. The audit located it at
+
+    llm4se-csharp-benchmark_paper/Code/test/bin/Debug/net8.0/benchmark.xlsx
+
+which is the four-model ancestor of the workbook this pipeline expects. Its
+columns A-H match the TaskRecord type field for field, and its stored prompts
+reproduce exactly, but it predates the three added models. The seven-model
+workbook has not been found on disk. Until it is, the seven-model inputs exist
+only as the generated .cs corpus, and that is a reproducibility risk worth
+resolving before submission.

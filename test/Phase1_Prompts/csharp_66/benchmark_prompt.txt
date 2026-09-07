@@ -1,0 +1,60 @@
+Role:
+You are an expert C# Performance Architect specializing in BenchmarkDotNet.
+
+Objective:
+I will provide a JSON object describing a coding problem. Your task is to write a BenchmarkRunner class that tests 4 existing solutions (GPT, Gemini, Claude, Grok) against each other.
+
+Input JSON Fields:
+
+    task_id: Unique ID (e.g., "csharp/0").
+
+    entry_point: The method name to call (e.g., "BelowZero").
+
+    prompt: Contains the method signature and types.
+
+    description: The logic of the problem.
+
+Strict Implementation Rules:
+
+    Namespace Naming:
+
+        You must sanitize task_id. Replace /, -, and spaces with _.
+
+        Example: csharp/0 becomes csharp_0.
+
+        The namespace must be: Benchmarks.{task_id_sanitized}
+
+    Class & Attributes:
+
+        Class name: public class BenchmarkRunner
+
+        Attributes: [MemoryDiagnoser], [RankColumn], [Orderer(SummaryOrderPolicy.FastestToSlowest)]
+
+        Params: [Params(100, 1000, 10000)] public int N { get; set; }
+
+    Data Generation ([GlobalSetup]):
+
+        CRITICAL: Analyze the description and entry_point. You must generate Worst-Case Scenario data.
+
+        Why? If the code exits early (e.g., finds a value in index 0), the benchmark will show 0ns.
+
+        Instruction: Create data that forces the solver to process the entire N items.
+
+        Example: If the problem is "Return true if sum < 0", generate a list that stays positive until the very last item.
+
+    The Benchmark Methods:
+
+        You must define exactly 4 methods: GPT, Gemini, Claude, Grok.
+
+        GPT must have [Benchmark(Baseline = true)].
+
+        The methods must return the result (do not use void) to prevent JIT optimization.
+
+        Calling Convention: You must call the solvers using this exact fully qualified name pattern:
+        return Benchmarks.{task_id_sanitized}.{AI_NAME}.Solver.{entry_point}(_data);
+
+Input JSON:
+"{"task_id":"csharp/66","prompt":"using System;\nusing System.Collections.Generic;\nusing System.Linq;\nusing System.Text.RegularExpressions;\nusing KellermanSoftware.CompareNetObjects;\n\nnamespace Solution\n{\n    public class Program\n    {\n        /// \u003Csummary\u003E \n        /// You\u0027re an expert C# programmer\n        /// Your task is to implement a function that will Simplify the expression\n        /// x * n. The function returns True if x * n evaluates to a whole number and False\n        /// otherwise. Both x and n, are string representation of a fraction, and have the following format,\n        /// \u003Cnumerator\u003E/\u003Cdenominator\u003E where both numerator and denominator are positive whole numbers.\n        /// \n        /// You can assume that x, and n are valid fractions, and do not have zero as denominator.\n        /// \n        /// Simplify(\u00221/5\u0022, \u00225/1\u0022) = True\n        /// Simplify(\u00221/6\u0022, \u00222/1\u0022) = False\n        /// Simplify(\u00227/10\u0022, \u002210/2\u0022) = False\n        /// \n        /// \u003C/summary\u003E\n        public static bool Simplify (string x, string n) \n        {","entry_point":"Simplify","description":"Your task is to implement a function that will simplify the expression\nx * n. The function returns True if x * n evaluates to a whole number and False\notherwise. Both x and n, are string representation of a fraction, and have the following format,\n\u003Cnumerator\u003E/\u003Cdenominator\u003E where both numerator and denominator are positive whole numbers.\n\nYou can assume that x, and n are valid fractions, and do not have zero as denominator.\n\nsimplify(\u00221/5\u0022, \u00225/1\u0022) = True\nsimplify(\u00221/6\u0022, \u00222/1\u0022) = False\nsimplify(\u00227/10\u0022, \u002210/2\u0022) = False\n"}"
+
+Output:
+Provide ONLY the C# code. Do not include markdown code blocks or explanations.

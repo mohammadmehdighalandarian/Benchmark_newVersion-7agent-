@@ -1,0 +1,27 @@
+```
+
+BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.8246/25H2/2025Update/HudsonValley2)
+Intel Core i5-8250U CPU 1.60GHz (Max: 1.80GHz) (Kaby Lake R), 1 CPU, 8 logical and 4 physical cores
+.NET SDK 9.0.100
+  [Host]     : .NET 8.0.11 (8.0.11, 8.0.1124.51707), X64 RyuJIT x86-64-v3 [AttachedDebugger]
+  DefaultJob : .NET 8.0.11 (8.0.11, 8.0.1124.51707), X64 RyuJIT x86-64-v3
+
+
+```
+| Method   | N   | Mean      | Error    | StdDev    | Ratio | RatioSD | Rank | Allocated | Alloc Ratio |
+|--------- |---- |----------:|---------:|----------:|------:|--------:|-----:|----------:|------------:|
+| Gemini   | 10  |  71.21 ns | 0.277 ns |  0.259 ns |  0.54 |    0.06 |    1 |         - |          NA |
+| Mistral  | 10  | 116.22 ns | 0.796 ns |  0.665 ns |  0.88 |    0.10 |    2 |         - |          NA |
+| Grok     | 10  | 116.46 ns | 1.209 ns |  1.131 ns |  0.88 |    0.10 |    2 |         - |          NA |
+| Claude   | 10  | 116.62 ns | 0.473 ns |  0.419 ns |  0.88 |    0.10 |    2 |         - |          NA |
+| Llama    | 10  | 116.74 ns | 1.362 ns |  1.274 ns |  0.89 |    0.10 |    2 |         - |          NA |
+| DeepSeek | 10  | 117.52 ns | 0.199 ns |  0.166 ns |  0.89 |    0.10 |    2 |         - |          NA |
+| GPT      | 10  | 133.63 ns | 5.584 ns | 16.288 ns |  1.01 |    0.17 |    2 |         - |          NA |
+|          |     |           |          |           |       |         |      |           |             |
+| Gemini   | 100 | 232.53 ns | 0.935 ns |  0.730 ns |  0.61 |    0.00 |    1 |         - |          NA |
+| GPT      | 100 | 381.90 ns | 1.495 ns |  1.248 ns |  1.00 |    0.00 |    2 |         - |          NA |
+| Claude   | 100 | 383.21 ns | 1.317 ns |  1.232 ns |  1.00 |    0.00 |    2 |         - |          NA |
+| Grok     | 100 | 386.86 ns | 1.678 ns |  1.401 ns |  1.01 |    0.00 |    2 |         - |          NA |
+| DeepSeek | 100 | 388.73 ns | 4.481 ns |  4.191 ns |  1.02 |    0.01 |    2 |         - |          NA |
+| Llama    | 100 | 389.77 ns | 5.702 ns |  5.055 ns |  1.02 |    0.01 |    2 |         - |          NA |
+| Mistral  | 100 | 392.60 ns | 6.337 ns |  5.618 ns |  1.03 |    0.01 |    2 |         - |          NA |

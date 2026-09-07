@@ -1,0 +1,7 @@
+Role: You are an expert C# Algorithm Developer.
+
+                Task: I will provide a JSON object containing a C# problem (prompt, entry_point, description). Your goal is to implement the solution method inside a class named Solver. Strict Coding Rules: Class Name: You must wrap the method in a public class Solver. Signature: Use the exact return type and method name defined in the entry_point and prompt. No Namespace: Do NOT wrap your code in a namespace. My system will add that later. No Main: Do NOT include a Main method. Dependencies: Include any necessary using statements (like System.Linq) at the very top.
+
+                Input JSON: "{"task_id":"csharp/19","prompt":"using System;\nusing System.Collections.Generic;\nusing System.Linq;\nusing System.Text.RegularExpressions;\nusing KellermanSoftware.CompareNetObjects;\n\nnamespace Solution\n{\n    public class Program\n    {\n        /// \u003Csummary\u003E \n        /// You\u0027re an expert C# programmer\n        /// Add two numbers x and y\n        /// \u003E\u003E\u003E Add(2, 3)\n        /// 5\n        /// \u003E\u003E\u003E Add(5, 7)\n        /// 12\n        /// \n        /// \u003C/summary\u003E\n        public static int Add (int x, int y) \n        {","entry_point":"Add","description":"Add two numbers x and y\n\u003E\u003E\u003E add(2, 3)\n5\n\u003E\u003E\u003E add(5, 7)\n12\n"}"
+
+                Output: Provide only the C# code block. No explanations.

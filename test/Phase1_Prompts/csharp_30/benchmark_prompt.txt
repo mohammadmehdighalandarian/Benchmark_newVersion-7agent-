@@ -1,0 +1,60 @@
+Role:
+You are an expert C# Performance Architect specializing in BenchmarkDotNet.
+
+Objective:
+I will provide a JSON object describing a coding problem. Your task is to write a BenchmarkRunner class that tests 4 existing solutions (GPT, Gemini, Claude, Grok) against each other.
+
+Input JSON Fields:
+
+    task_id: Unique ID (e.g., "csharp/0").
+
+    entry_point: The method name to call (e.g., "BelowZero").
+
+    prompt: Contains the method signature and types.
+
+    description: The logic of the problem.
+
+Strict Implementation Rules:
+
+    Namespace Naming:
+
+        You must sanitize task_id. Replace /, -, and spaces with _.
+
+        Example: csharp/0 becomes csharp_0.
+
+        The namespace must be: Benchmarks.{task_id_sanitized}
+
+    Class & Attributes:
+
+        Class name: public class BenchmarkRunner
+
+        Attributes: [MemoryDiagnoser], [RankColumn], [Orderer(SummaryOrderPolicy.FastestToSlowest)]
+
+        Params: [Params(100, 1000, 10000)] public int N { get; set; }
+
+    Data Generation ([GlobalSetup]):
+
+        CRITICAL: Analyze the description and entry_point. You must generate Worst-Case Scenario data.
+
+        Why? If the code exits early (e.g., finds a value in index 0), the benchmark will show 0ns.
+
+        Instruction: Create data that forces the solver to process the entire N items.
+
+        Example: If the problem is "Return true if sum < 0", generate a list that stays positive until the very last item.
+
+    The Benchmark Methods:
+
+        You must define exactly 4 methods: GPT, Gemini, Claude, Grok.
+
+        GPT must have [Benchmark(Baseline = true)].
+
+        The methods must return the result (do not use void) to prevent JIT optimization.
+
+        Calling Convention: You must call the solvers using this exact fully qualified name pattern:
+        return Benchmarks.{task_id_sanitized}.{AI_NAME}.Solver.{entry_point}(_data);
+
+Input JSON:
+"{"task_id":"csharp/30","prompt":"using System;\nusing System.Collections.Generic;\nusing System.Linq;\nusing System.Text.RegularExpressions;\nusing KellermanSoftware.CompareNetObjects;\n\nnamespace Solution\n{\n    public class Program\n    {\n        /// \u003Csummary\u003E \n        /// You\u0027re an expert C# programmer\n        /// \n        /// Write a function that returns True if the object q will fly, and False otherwise.\n        /// The object q will fly if it\u0027s balanced (it is a palindromic list) and the sum of its elements is less than or equal the maximum possible weight w.\n        /// \n        /// Example:\n        /// WillItFly([1, 2], 5) \u279E False \n        /// # 1\u002B2 is less than the maximum possible weight, but it\u0027s unbalanced.\n        /// \n        /// WillItFly([3, 2, 3], 1) \u279E False\n        /// # it\u0027s balanced, but 3\u002B2\u002B3 is more than the maximum possible weight.\n        /// \n        /// WillItFly([3, 2, 3], 9) \u279E True\n        /// # 3\u002B2\u002B3 is less than the maximum possible weight, and it\u0027s balanced.\n        /// \n        /// WillItFly([3], 5) \u279E True\n        /// # 3 is less than the maximum possible weight, and it\u0027s balanced.\n        /// \n        /// \u003C/summary\u003E\n        public static bool WillItFly (List\u003Cint\u003E q, int w) \n        {","entry_point":"WillItFly","description":"\nWrite a function that returns True if the object q will fly, and False otherwise.\nThe object q will fly if it\u0027s balanced (it is a palindromic list) and the sum of its elements is less than or equal the maximum possible weight w.\n\nExample:\nwill_it_fly([1, 2], 5) \u279E False \n# 1\u002B2 is less than the maximum possible weight, but it\u0027s unbalanced.\n\nwill_it_fly([3, 2, 3], 1) \u279E False\n# it\u0027s balanced, but 3\u002B2\u002B3 is more than the maximum possible weight.\n\nwill_it_fly([3, 2, 3], 9) \u279E True\n# 3\u002B2\u002B3 is less than the maximum possible weight, and it\u0027s balanced.\n\nwill_it_fly([3], 5) \u279E True\n# 3 is less than the maximum possible weight, and it\u0027s balanced.\n"}"
+
+Output:
+Provide ONLY the C# code. Do not include markdown code blocks or explanations.

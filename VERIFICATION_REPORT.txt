@@ -1,0 +1,1032 @@
+================================================================================
+SOURCE-CODE VERIFICATION OF MANUSCRIPT CLAIMS
+Evaluation pipeline for LLM-generated C# code
+================================================================================
+
+Date of audit ...... 2026-08-16
+Repository ......... C:\Users\moham\OneDrive\Desktop\Desktop\Paper\test
+Git HEAD ........... 7f6dbe1 "Make Classes" (2026-06-12)
+Scope .............. Verification of manuscript claims against source code.
+                     Claims were checked against source and against surviving
+                     BenchmarkDotNet artifacts. No claim in this report is
+                     inferred from evaluation_results.txt.
+
+Corpus dimensions confirmed: 80 tasks x 7 models = 560 solution instances;
+79 benchmark harnesses (csharp_11 has none).
+
+
+================================================================================
+EXECUTIVE SUMMARY
+================================================================================
+
+MUST FIX - factually wrong as currently stated in the manuscript:
+
+  1. Benchmark input sizes are N in {10, 100}, not {100, 1000, 10000}.   (Q15)
+  2. "SonarQube" is SonarAnalyzer run in-process; the A-E ratings and
+     technical-debt minutes are local formulas, not SonarQube outputs.   (Q10)
+  3. Algorithm 1 does not skip string/char literals or comments, and it
+     keys on "Main(", not on the entry-point signature.                  (Q7)
+  4. The 5000 ms test-execution timeout was never applied.               (Q15)
+  5. The quality formula needs min(V,10) on the naming term.             (Q1)
+  6. Memory values are bytes/op computed with a wrong divisor; they are
+     roughly two orders of magnitude too low.                            (Q4)
+
+MUST DISCLOSE - reviewer-facing validity issues:
+
+  7. Naming violations include prompt-supplied parameter names; the counts
+     need recomputing with signature identifiers excluded.               (Q5)
+  8. Professionalism has zero weight in every score. So does allocated
+     memory: the Efficiency axis is time-only.                           (Q1)
+  9. "Excluded" reflects an isolated compile against only seven metadata
+     references, which is why excluded rows can show 100% correctness.   (Q11)
+ 10. The six missing-timing tasks are environmental failures (one file
+     lock, four build timeouts, one absent harness), and the checkpoint
+     wrongly marks them complete.                                        (Q12)
+
+PARTIALLY RESOLVED FROM AN EXTERNAL REPOSITORY (see Appendix C):
+     The prompt templates and the task-definition spreadsheet were located
+     outside this repository, in the earlier four-model paper repo at
+     C:\Users\moham\OneDrive\Desktop\llm4se-csharp-benchmark_paper.
+     Q8 and Q13 are answered there. Q9 (resolved model versions, decoding
+     parameters) remains unanswerable - no API code exists in either repo.
+
+     NOTE: Appendix C also identifies the ORIGIN of the incorrect
+     N = 100/1000/10000 claim. It was an instruction in the benchmark prompt,
+     not a property of any generated artifact.
+
+MOST USEFUL NEXT STEP: a phase-2 re-run script that regenerates the exclusion
+list under a corrected reference set and captures the discarded compiler
+diagnostics. It closes Q11, the compile-failure part of Q14, and part of Q13
+in one pass.
+
+
+================================================================================
+PRIORITY 1 - FORMULAS
+================================================================================
+
+--------------------------------------------------------------------------------
+Q1. STRUCTURAL QUALITY SCORE
+--------------------------------------------------------------------------------
+VERDICT: Formula correct, but one cap is missing. Professionalism confirmed to
+         have zero weight.
+
+Source: test/ScoringEngine.cs:151-186
+
+    r.Norm_Complexity = Clamp01(1.0 - (s.CyclomaticComplexity / cfg.MaxAcceptableComplexity)); // 15
+    r.Norm_Nesting    = Clamp01(1.0 - (s.MaxNestingDepth      / cfg.MaxAcceptableNesting));    // 5
+    r.Norm_Style      = Clamp01(1.0 - (s.NamingViolations     / cfg.MaxAcceptableNaming));     // 10
+
+    double qNum = cfg.W_Complexity * r.Norm_Complexity
+                + cfg.W_Nesting    * r.Norm_Nesting
+                + cfg.W_Style      * r.Norm_Style;
+    double qDen = cfg.W_Complexity + cfg.W_Nesting + cfg.W_Style;   // = 3
+    r.QualityScore = (qDen > 0 ? qNum / qDen : 0) * 100.0;
+
+The code computes an unweighted mean of three inverse-normalised terms, not a
+90-point penalty budget. Expanding:
+
+    100/3 * [(1 - C/15) + (1 - N/5) + (1 - V/10)]
+      = 100 - 2.22*C - 6.67*N - 3.33*V
+
+The manuscript's (100/90)*(90 - 2C - 6N - 3V) expands identically.
+THE FORMULA IS ALGEBRAICALLY EQUIVALENT - KEEP IT.
+
+THE ERROR IS THE NAMING TERM. Clamp01 is applied to each term independently, so
+naming violations saturate at MaxAcceptableNaming = 10, exactly as complexity
+saturates at 15 and nesting at 5. The manuscript writes 3*NamingViolations
+uncapped, which diverges for any solution with V > 10 and goes negative past
+V = 30.
+
+CORRECTED FORM:
+
+    Quality = (100/90) * ( 90 - 2*min(C,15) - 6*min(N,5) - 3*min(V,10) )
+
+CAPS ARE EXPLICIT NAMED CONSTANTS, not artifacts - test/ScoringEngine.cs:44-46
+
+    public double MaxAcceptableComplexity { get; init; } = 15.0;  // McCabe guidance
+    public double MaxAcceptableNesting    { get; init; } = 5.0;
+    public double MaxAcceptableNaming     { get; init; } = 10.0;
+
+PROFESSIONALISM CONTRIBUTES NOTHING - the suspicion is confirmed.
+ProfessionalismScore is not a field of ScoreInputs at all. Its two constituent
+booleans ARE passed in (test/Program.cs:86-87 -> ScoringEngine.cs:93-94) but
+Compute() never reads them. A full-repo trace shows every usage is either an
+assignment or Excel output (column 13, ProgramMain.cs:249); no read reaches any
+score. The metric is reported but inert.
+
+The same trace shows AllocatedBytes is likewise declared, populated, and never
+read (ScoringEngine.cs:98). MEMORY HAS ZERO WEIGHT IN EFFICIENCY, which is
+time-only. If the manuscript describes efficiency as covering time and memory,
+that needs correcting too.
+
+--------------------------------------------------------------------------------
+Q2. EFFICIENCY SCORE
+--------------------------------------------------------------------------------
+VERDICT: Confirmed, with one special case the closed form hides.
+
+Source: test/ScoringEngine.cs:166-176
+
+    bool hasBenchmarkData = s.MedianExecutionTimeNs > 0;
+    if (hasBenchmarkData)
+        r.Norm_Performance = Clamp01(cfg.PerformanceBaselineNs /
+                                    (cfg.PerformanceBaselineNs + s.MedianExecutionTimeNs));
+    else
+        r.Norm_Performance = 0.0;
+    r.EfficiencyScore = r.Norm_Performance * 100.0;
+
+Anchor constant: PerformanceBaselineNs = 10000.0 (ScoringEngine.cs:47).
+Clamp01 is mathematically inert here - the ratio is always in (0,1) for t > 0.
+
+SPECIAL CASE: for t <= 0 the code yields 0, NOT 100. The manuscript's closed
+form gives 100 at t = 0, the opposite. t <= 0 is the missing-data sentinel, and
+it additionally drops performance from the composite denominator (see Q3).
+State the definition as guarded / piecewise.
+
+ADDITIONAL IMPRECISION: t is not a single median. It is the MEAN OF THE
+PER-CONFIGURATION MEDIANS across both N values - ProgramMain.cs:329:
+
+    timeByModel[model] = reports.Average(rp => rp.ResultStatistics!.Median);
+
+"Median execution time" is therefore inaccurate; it is a mean of medians.
+
+--------------------------------------------------------------------------------
+Q3. COMPOSITE SCORE
+--------------------------------------------------------------------------------
+VERDICT: Weights and renormalisation both correct - but the provenance is
+         misstated.
+
+Source: test/ScoringEngine.cs:191-201
+
+    double w_c = cfg.ExcludeCorrectnessFromQuality ? 0.0 : cfg.W_Correctness;
+    double perfWeight = hasBenchmarkData ? cfg.W_Performance : 0.0;
+    double num = w_c * r.Norm_Correctness + cfg.W_Complexity * r.Norm_Complexity
+               + cfg.W_Nesting * r.Norm_Nesting + cfg.W_Style * r.Norm_Style
+               + perfWeight * r.Norm_Performance;
+    double den = w_c + cfg.W_Complexity + cfg.W_Nesting + cfg.W_Style + perfWeight;
+    r.CompositeScore = (den > 0 ? num / den : 0) * 100.0;
+
+Weights are five EQUAL UNIT WEIGHTS OVER SUB-COMPONENTS (ScoringEngine.cs:51-55,
+all = 1.0), not a 0.2/0.2/0.6 triple over axes. With benchmark data den = 5;
+since Quality is the mean of three of those five, the 0.2/0.2/0.6 split falls
+out arithmetically. Without benchmark data den = 4, giving
+
+    0.25*Correctness + 0.75*Quality
+
+which is identical to the manuscript's /0.8 renormalisation. Both confirmed.
+
+WHY THE DISTINCTION MATTERS FOR REVIEW: the 60% weight on quality is not a
+design choice, it is a consequence of quality having three of five
+sub-components. Presenting it as a deliberate emphasis invites a challenge the
+code cannot support. Describe it as equal weighting of five normalised
+sub-scores, and note the induced 3:1 emphasis.
+
+Excluded rows return at ScoringEngine.cs:140-148 before any of this, leaving
+CompositeScore = 0.
+
+--------------------------------------------------------------------------------
+Q4. MEMORY COLUMN UNITS
+--------------------------------------------------------------------------------
+VERDICT: The code writes BYTES PER OPERATION. The values are not megabytes -
+         the divisor is wrong.
+
+Source: test/ProgramMain.cs:440-448
+
+    static double AllocBytesPerOp(BenchmarkDotNet.Reports.BenchmarkReport report)
+    {
+        long totalOps = report.AllMeasurements
+            .Where(m => m.IterationMode == BenchmarkDotNet.Engines.IterationMode.Workload)
+            .Sum(m => m.Operations);
+        return totalOps > 0
+            ? (double)report.GcStats.GetTotalAllocatedBytes(false) / totalOps
+            : 0.0;
+    }
+
+  FIELD READ ..... GcStats.GetTotalAllocatedBytes(false) - cumulative allocated
+                   bytes, NOT Gen0 collection counts.
+  CONVERSION ..... division only. No unit scaling exists anywhere in the repo.
+  THE DEFECT ..... the filter constrains IterationMode but NOT IterationStage,
+                   so the denominator sums operations across Pilot, Warmup,
+                   Actual AND Result stages, while the numerator covers only
+                   actual workload iterations. The result is systematically too
+                   small by roughly the stage-multiple.
+
+EMPIRICAL CONFIRMATION. The BenchmarkDotNet artifacts under
+test/bin/Release/net8.0/BenchmarkDotNet.Artifacts/results/ give ground truth.
+For csharp_43 / Llama, BDN's own "Allocated" column reads 8,589,938,640 B while
+the pipeline wrote approximately 4.2e7 - a factor of about 204.
+
+The in-code comment at ProgramMain.cs:437-439 claiming the calculation "match[es]
+how BenchmarkDotNet's own [MemoryDiagnoser] column is computed" is incorrect on
+both the divisor and the excludeAllocationQuantumSideEffects: false flag.
+
+ON THE ZERO VALUES - GENUINELY AMBIGUOUS. Three indistinguishable causes:
+
+  (a) Rows never reached by phase 3. Every row is first written with memory
+      hard-coded to 0 (ProgramMain.cs:180, BuildScoredRow(..., 0, 0, cfg)) and
+      only overwritten if a benchmark report exists.
+  (b) totalOps == 0 -> the 0.0 placeholder in the method above.
+  (c) A true zero-allocation measurement. Real and common here; the artifact
+      CSVs show Alloc=0.0000 for many stack-only solvers.
+
+The code cannot distinguish these.
+
+RECOMMENDATION: rebuild the column from the 79 artifact CSVs' "Allocated" field,
+which is per-operation, correct, and distinguishes empty from zero. That also
+recovers the Gen0 column.
+
+
+================================================================================
+PRIORITY 2 - NAMING AND PROFESSIONALISM
+================================================================================
+
+--------------------------------------------------------------------------------
+Q5. NAMING CHECK - THE REVIEWER IS CORRECT
+--------------------------------------------------------------------------------
+VERDICT: Signature identifiers ARE counted. The objection must be conceded.
+
+Source: test/CodeEvaluator.cs:292-306, in full
+
+    private void AnalyzeNamingConventions(SyntaxTree tree, CodeQualityReport report, string expectedMethodName)
+    {
+        var root = tree.GetRoot();
+        var method = root.DescendantNodes().OfType<MethodDeclarationSyntax>()
+                         .FirstOrDefault(m => m.Identifier.Text == expectedMethodName);
+        if (method != null && method.Identifier.Text.Length > 0 && char.IsLower(method.Identifier.Text[0]))
+            report.NamingViolations++;
+
+        var identifiers = root.DescendantNodes().OfType<ParameterSyntax>().Select(p => p.Identifier.Text)
+            .Concat(root.DescendantNodes().OfType<VariableDeclaratorSyntax>().Select(v => v.Identifier.Text));
+
+        foreach (var name in identifiers)
+            if (!string.IsNullOrEmpty(name) && char.IsUpper(name[0]))
+                report.NamingViolations++;
+    }
+
+  NODES VISITED ............... MethodDeclarationSyntax (one only),
+                                ParameterSyntax (all),
+                                VariableDeclaratorSyntax (all)
+  ENTRY-POINT METHOD EXCLUDED?  NO - it is the ONLY method checked
+  ENTRY-POINT PARAMS EXCLUDED?  NO - all parameters in the file are scanned
+  IdentifierName .............. not visited
+  PropertyDeclarationSyntax ... not visited
+  CLASS NAME "Solver" ......... NOT CHECKED (no ClassDeclarationSyntax visit)
+
+RULES: exactly two, both first-character-only.
+  - Method: flagged if it starts lowercase.
+  - Parameters and variable declarators: flagged if they start uppercase.
+  No underscore, full-PascalCase or full-camelCase validation. Both
+  "my_variable" and "XMLHttpRequest" pass.
+
+WHY THE OBJECTION HOLDS: parameter names come from the task signature, so they
+are prompt-determined and identical across all seven models. They add a constant
+offset per task rather than a model signal.
+
+NUANCE ON THE METHOD NAME: expectedMethodName is NOT read from the task spec. It
+is re-derived from the model's own code by regex (ProgramMain.cs:131-135, first
+public method). It therefore measures the model's emitted name - but since the
+prompt supplies the entry point, in practice it echoes the prompt.
+
+TWO FURTHER SCOPE ISSUES TO ADDRESS WHILE RECOMPUTING:
+  - VariableDeclaratorSyntax also matches FIELD declarations, so
+    "public const int MaxSize" - correct C# - is counted as a violation.
+  - Only the entry-point method is name-checked. HELPER METHODS THE MODEL WROTE
+    ARE NEVER CHECKED, so the metric is blind to exactly the naming the model
+    chose freely.
+
+RECOMPUTATION SHOULD: exclude the entry-point method name and all parameters of
+that method; ideally add helper-method names.
+
+--------------------------------------------------------------------------------
+Q6. PROFESSIONALISM METRIC
+--------------------------------------------------------------------------------
+VERDICT: The manuscript is missing a third component.
+
+Source: test/CodeEvaluator.cs:318-339. Maximum value is 3, from three
+independent binary signals:
+
+  1. DOCUMENTATION (+1): any SingleLineDocumentationCommentTrivia or
+     MultiLineDocumentationCommentTrivia in descendant trivia. Syntactic,
+     reliable.
+
+  2. NULL CHECKS (+1): a RAW SUBSTRING SEARCH over the source text for
+     "== null", "is null", "ArgumentNullException", or "?.". Not syntactic - it
+     matches inside comments and string literals, and "?." is null-conditional
+     access rather than an input guard.
+
+         report.HasNullChecks = code.Contains("== null") || code.Contains("is null")
+                                || code.Contains("ArgumentNullException") || code.Contains("?.");
+
+  3. LINQ USAGE (+1) - ABSENT FROM THE MANUSCRIPT: any invocation whose member
+     name is one of Select, Where, Aggregate, Sum, Any, All, OrderBy, GroupBy.
+     Name-based only, so a user-defined Sum() also counts.
+
+The third component is what makes the observed value 3 reachable. The
+two-component description is incomplete and should be corrected - or, given Q1,
+the metric could be dropped from the scoring narrative entirely and reported as
+descriptive only.
+
+
+================================================================================
+PRIORITY 3 - EXTRACTION
+================================================================================
+
+--------------------------------------------------------------------------------
+Q7. ExtractMethodBodyRobust
+--------------------------------------------------------------------------------
+VERDICT: The literal/comment-skipping claim is FALSE. The pseudocode asserts
+         behaviour the implementation does not have.
+
+Source: test/SolutionWriter.cs:192-220, verbatim
+
+    private string ExtractMethodBodyRobust(string rawCode)
+    {
+        if (string.IsNullOrEmpty(rawCode)) return "// No test code found";
+
+        var mainMatch = Regex.Match(rawCode, @"Main\s*\(.*?\)");
+        if (!mainMatch.Success) return rawCode;
+
+        int startIndex = rawCode.IndexOf('{', mainMatch.Index);
+        if (startIndex == -1) return rawCode;
+
+        int openBraces = 0;
+        int endIndex = -1;
+
+        for (int i = startIndex; i < rawCode.Length; i++)
+        {
+            if (rawCode[i] == '{') openBraces++;
+            if (rawCode[i] == '}') openBraces--;
+
+            if (openBraces == 0)
+            {
+                endIndex = i;
+                break;
+            }
+        }
+
+        if (endIndex == -1) return "// Error parsing test body";
+
+        return rawCode.Substring(startIndex + 1, endIndex - startIndex - 1).Trim();
+    }
+
+CORRECTIONS TO ALGORITHM 1:
+
+  - NO LITERAL OR COMMENT AWARENESS. It is a bare character loop. A "{" inside a
+    string literal, char literal, comment, or interpolated string ($"{x}")
+    corrupts the depth count. REMOVE THAT CLAUSE FROM THE PSEUDOCODE.
+  - IT DOES NOT LOCATE THE ENTRY-POINT SIGNATURE. It regex-matches
+    Main\s*\(.*?\) and takes the first "{" after it.
+  - NO MARKDOWN STRIPPING IN THIS PATH. Fence removal lives in a separate
+    CleanCode (SolutionWriter.cs:229-233) applied to solver and benchmark code,
+    but the test path calls ExtractMethodBodyRobust(data.Test) directly
+    (SolutionWriter.cs:133) with no CleanCode first.
+
+FAILURE MODES - no exceptions thrown, four silent sentinels:
+    empty input          -> "// No test code found"
+    no Main(             -> the raw input, unchanged
+    no "{"               -> the raw input, unchanged
+    unbalanced braces    -> "// Error parsing test body"
+Each is emitted into generated source as a comment, producing a test method with
+ZERO ASSERTIONS THAT COMPILES AND PASSES.
+
+TWO UNDOCUMENTED POST-PROCESSING STEPS FOLLOW, both regex, both validity-relevant:
+
+  InstrumentTestCode (SolutionWriter.cs:169-176) rewrites assertions:
+
+    string pattern = @"if\s*\(\!([a-zA-Z0-9_]+)\.AreEqual\)\s*\{\s*throw new Exception\(\""(.*?)\""\);\s*\}";
+    string replacement = "TestUtils.Check($1, \"$2\");";
+
+  Any assertion not matching that exact shape is NOT INSTRUMENTED AND NEVER
+  COUNTED - it silently vanishes from the pass/fail totals rather than failing.
+
+  InjectNamespace (SolutionWriter.cs:222-227) regex-prefixes the entry-point call
+  with the model namespace.
+
+TWO STRUCTURAL NOTES:
+
+  - SolutionExport.cs contains a SECOND, CLEANER GENERATOR using {NS} placeholder
+    substitution. The shipped corpus was produced by SolutionWriter: the
+    generated files carry its "TestUtils.Reset(); try { ... } catch" signature
+    and CompareNetObjects import. DESCRIBE SolutionWriter, NOT SolutionExport.
+  - NEITHER GENERATOR HAS A LIVE CALL SITE. CreateFiles, ExportSolutions and
+    ReadSolutions are defined and never invoked. The generation stage cannot be
+    re-run from the current tree. This is a reproducibility gap a reviewer may
+    probe.
+
+
+================================================================================
+PRIORITY 4 - PROMPTS AND CONFIGURATION
+================================================================================
+
+--------------------------------------------------------------------------------
+Q8. PROMPT TEMPLATES
+--------------------------------------------------------------------------------
+VERDICT: NOT IN THIS REPOSITORY, BUT RECOVERED FROM AN EARLIER PAPER REPO.
+         See APPENDIX C for the verbatim templates and the instantiated
+         csharp/1 prompt. The findings below about THIS repository still hold.
+
+A full-tree search for solution_prompt, benchmark_prompt, HttpClient, api_key,
+openai, anthropic, temperature and max_tokens returns NO MATCHES in any source
+file. The only hits for "temperature" are two prose comments referring to the
+assumption (Program.cs:205, ScoringEngine.cs:33).
+
+There is no API client, no request construction, and no response persistence
+anywhere in the codebase. TaskRecord (ProgramMain.cs:11-21) declares prompt,
+description and natural_language fields, but the type is NEVER INSTANTIATED - no
+code reads a task file into it.
+
+The instantiated prompt for csharp_1 and any raw model response CANNOT BE
+RECOVERED FROM THIS REPOSITORY. Generation happened outside it. The earliest
+surviving artifact is already-cleaned code in the source spreadsheet's columns
+K-Q.
+
+--------------------------------------------------------------------------------
+Q9. MODEL IDENTIFIERS AND QUERY DATES
+--------------------------------------------------------------------------------
+VERDICT: CANNOT DETERMINE - only display labels exist.
+
+Every model string in the codebase is a seven-element display-label array, never
+an API identifier:
+
+    ProgramMain.cs:145      { "GPT", "Gemini", "Claude", "Grok", "Mistral", "DeepSeek", "Llama" }
+    ProgramMain.cs:292      same array, benchmark phase
+    SolutionExport.cs:60-68 same labels, tuple form
+    SolutionWriter.cs:50-95 same labels, emitted as namespace segments
+    CodeGenerator.cs:38-62  older four-model subset, uses "ChatGpt"
+
+No "gpt-4o", "claude-sonnet-4", or any versioned identifier appears anywhere.
+
+GIT HISTORY DOES NOT HELP. The repository has three commits in total:
+    698d4d3   2026-02-21   add
+    59c2c76   2026-02-22   change
+    7f6dbe1   2026-06-12   Make Classes
+git log -p on ProgramMain.cs yields no prior revision of the model array. There
+is no mid-June 2026 change to recover.
+
+NO RAW RESPONSES ARE STORED, so resolved model versions are unrecoverable from
+the repo. TEMPERATURE AND DECODING PARAMETERS ARE NOT SET ANYWHERE IN CODE - if
+temperature = 0 is claimed, that claim rests entirely on external records.
+
+--------------------------------------------------------------------------------
+Q10. "SONARQUBE" CONFIGURATION
+--------------------------------------------------------------------------------
+VERDICT: THE FRAMEWORK DOES NOT USE SONARQUBE. This is the most consequential
+         terminology correction in this report.
+
+There is no SonarQube server, no scanner, no quality profile, and no project
+analysis. The pipeline loads SonarAnalyzer.CSharp VERSION 10.27.0.140913
+(test/test.csproj:20) as a NuGet-supplied DLL and runs its Roslyn
+DiagnosticAnalyzer classes IN-PROCESS, PER CODE SNIPPET, via reflection
+(SonarQubeEvaluator.cs:136-169).
+
+  EDITION / VERSION ... SonarAnalyzer.CSharp 10.27.0.140913. No SonarQube
+                        edition applies; no scanner is involved.
+  INVOCATION ......... Programmatic. The DLL is copied to output by an MSBuild
+                        target (test.csproj:28-32) and loaded with
+                        Assembly.LoadFrom. The package sets
+                        ExcludeAssets=analyzers so it does NOT run during the
+                        project's own build. No config file, CI script, or
+                        command line.
+  QUALITY PROFILE .... NONE. The code instantiates EVERY non-abstract
+                        DiagnosticAnalyzer with a parameterless constructor
+                        (SonarQubeEvaluator.cs:149-165). This is "all
+                        default-constructible rules", not a curated profile.
+                        Severities are each rule's DEFAULT, with no
+                        .editorconfig or ruleset applied.
+  RULES DISABLED ..... None deliberately - BUT analyzers that throw during
+                        instantiation are SILENTLY SKIPPED (catch { }, line 164),
+                        so the effective rule set is neither fixed nor recorded.
+                        Only the count is logged to console (line 167).
+
+THE DERIVED METRICS ARE LOCAL INVENTIONS, NOT SONARQUBE OUTPUTS.
+Technical debt uses a hard-coded 30/10/2 minutes per Error/Warning/Info
+(SonarQubeEvaluator.cs:55-57) - not SonarQube's SQALE model. The A-E ratings are
+local thresholds (SonarQubeEvaluator.cs:222-228):
+
+    private static string Maintainability(int count) =>
+        count == 0 ? "A" : count <= 3 ? "B" : count <= 7 ? "C" : count <= 15 ? "D" : "E";
+    private static string Reliability(int count) =>
+        count == 0 ? "A" : count == 1 ? "B" : count <= 3 ? "C" : count <= 7 ? "D" : "E";
+
+These share names with SonarQube ratings but not their definitions. THE
+MANUSCRIPT MUST NOT PRESENT THEM AS SONARQUBE RATINGS.
+
+SILENT-FAILURE CAVEAT FOR THE SQ COLUMNS: on timeout (60 s default), exception,
+or missing DLL, the method returns a report with all counts at 0 and ratings "A",
+with only TriggeredRules set to "TIMEOUT", "ERROR:...", or "NO_ANALYZERS"
+(SonarQubeEvaluator.cs:60-121). A FAILED SCAN IS INDISTINGUISHABLE FROM A CLEAN
+FILE except via the SQ Rules column. Filter on that before computing any SQ
+aggregate. Analyzer-crash diagnostics (AD0001) are also dropped (line 89).
+
+--------------------------------------------------------------------------------
+Q11. EXCLUSION SEMANTICS
+--------------------------------------------------------------------------------
+VERDICT: Determined by isolated Roslyn emit. The 100% correctness on excluded
+         rows is a REAL MEASUREMENT, not an uninitialised default - and it
+         reveals a validity problem.
+
+DETERMINATION: Roslyn in-memory emit success. test/CodeEvaluator.cs:83-95
+
+    var compilation = CompileCode(aiCode);
+    using var ms = new MemoryStream();
+    var emitResult = compilation.Emit(ms);
+    report.Compiles = emitResult.Success;
+
+ScoringEngine.cs:140-148 then sets Excluded = true and
+ExclusionReason = "did-not-compile". Not an exit code, not an exception.
+
+CORRECTNESS ON EXCLUDED ROWS IS PRESERVED DELIBERATELY - ScoringEngine.cs:146:
+
+    r.CorrectnessScore = s.SuccessRatePct;   // "still meaningful if tests ran; keep it"
+
+WHY THE 100s APPEAR - THE TWO PHASES COMPILE DIFFERENT THINGS:
+Phase 1 runs the solution as part of the fully-built project, with all its
+references. Phase 2 recompiles the EXTRACTED SNIPPET IN ISOLATION against only
+seven metadata references - object, Enumerable, List<>, Console, Regex,
+System.Runtime, netstandard (CodeEvaluator.cs:182-191). A solution using
+anything outside that closure fails the isolated compile while passing every
+test in the real build.
+
+"EXCLUDED" THEREFORE PARTLY MEASURES THE SANDBOX'S REFERENCE SET, NOT THE
+MODEL'S CODE. Any row with Excluded = TRUE and Correctness = 100 is almost
+certainly this artifact rather than a genuine compile failure. This needs
+stating in the manuscript, and the exclusion counts likely need recomputing with
+a fuller reference set.
+
+A SECOND PATH reaches the same flag with a misleading reason: if extraction
+returns empty, the report keeps Compiles = false and is labelled
+"did-not-compile" even though nothing was compiled (ProgramMain.cs:176-178).
+
+COMPILER ERRORS ARE NOT LOGGED. They are collected into report.ViolationDetails
+(CodeEvaluator.cs:90-91) - a field BuildScoredRow never copies and no writer
+emits. They are discarded at end of scope. Recovering them requires re-running
+phase 2.
+
+--------------------------------------------------------------------------------
+Q12. BENCHMARK FAILURES
+--------------------------------------------------------------------------------
+VERDICT: ALL SIX ARE ENVIRONMENTAL. NONE IS A CODE OR MODEL DEFECT.
+         The premise needs revising: five of the six tasks did run.
+
+Surviving artifacts under test/bin/Release/net8.0/BenchmarkDotNet.Artifacts/
+give a definite cause for each:
+
+  csharp_11   No Benchmark_Task_csharp_11.cs exists - the only task of 80
+              without a harness, so no BenchmarkRunner type was discovered. Its
+              logs show a SUCCESSFUL EARLIER RUN, so the file was deleted after
+              that run.
+
+  csharp_12   BDN boilerplate build failed: error MSB3021 / MSB3027 - test.dll
+              locked by another process (".NET Host (20296)"), retry count of 10
+              exceeded.
+
+  csharp_32   BDN boilerplate build failed:
+              "The configured timeout 00:02:00 was reached!"
+  csharp_33   Same 2-minute build timeout.
+  csharp_34   Same 2-minute build timeout.
+  csharp_35   Same 2-minute build timeout.
+
+Each of csharp_12 and 32-35 produced a report CSV containing a single GPT row at
+N=10 with Median=?, and a report footer reading:
+    Benchmarks with issues: BenchmarkRunner.GPT: DefaultJob [N=10]
+The run aborted at the baseline; the remaining six models never executed.
+
+TWO PROCESS DEFECTS COMPOUND THIS, both in ProgramMain.cs:296-345:
+  - The per-task catch writes the message to console only (lines 341-344).
+    Nothing is persisted, and the console text is gone.
+  - The checkpoint records these tasks as COMPLETED: all five appear in
+    evaluation_results.checkpoint.json. Despite the code's own message "will
+    retry on next run", A RESUMED RUN PERMANENTLY SKIPS THEM. Only tasks that
+    throw before done.Add(taskId) are retried; a benchmark that "succeeds" with
+    unusable statistics is marked done.
+
+RECOVERY: these five are recoverable by deleting their checkpoint entries and
+re-running on a quiet machine with a longer BDN build timeout.
+
+FRAMING FOR THE PAPER: report them as measurement-infrastructure failures, not
+as model or code properties. This framing is both accurate and favourable -
+none of the six reflects on the models.
+
+
+================================================================================
+PRIORITY 5 - DATA FILES
+================================================================================
+
+--------------------------------------------------------------------------------
+Q13. TASK SPREADSHEET
+--------------------------------------------------------------------------------
+VERDICT: NOT IN THIS REPOSITORY, BUT LOCATED EXTERNALLY. The task definitions
+         (all 80, with the verbatim `test` field) were found in the earlier
+         paper repo. ASSERTION COUNTS ARE NOW ANSWERED - see APPENDIX C.
+         The findings below about THIS repository still hold.
+
+SolutionExport.ReadSolutions (SolutionExport.cs:21-45) documents the schema by
+cell reference:
+    A = TaskId, C = Test, F = EntryPoint, K-Q = the seven models, T = Benchmark
+but takes filePath as a parameter with NO CALLER and NO HARD-CODED PATH.
+
+A repository-wide search for .xlsx, .csv, .tsv and .jsonl finds only generated
+output: evaluation_results.xlsx and 237 BenchmarkDotNet artifacts. The input
+workbook is absent and is not gitignored.
+
+Assertion counts (min / median / max), the csharp_1 figure, and the verbatim
+csharp_1 test field CANNOT BE ANSWERED from this repository.
+
+PARTIAL SUBSTITUTE AVAILABLE: the generated test/Solution/Tests/Tests_Task_*.cs
+files contain the instrumented assertions, so counting "TestUtils.Check(" per
+file per model recovers the INSTRUMENTED assertion count for all 80 tasks. For
+csharp_1 / GPT that is directly countable from Tests_Task_csharp_1.cs. Note this
+counts assertions that survived the regex instrumentation of Q7, which is a
+lower bound on the originals - but it is arguably the more relevant number,
+since it is what actually scored.
+
+SEPARATE FINDING: THE CODE WRITES .xlsx, NEVER A TSV. evaluation_results.txt
+does not exist in the repository and no code path emits it, so it was exported
+manually. Worth confirming that export preserved full precision.
+
+--------------------------------------------------------------------------------
+Q14. CASE-STUDY SOLUTIONS
+--------------------------------------------------------------------------------
+All are in test/Solution/Solvers/, one file per task with seven
+"namespace Benchmarks.<task>.<Model>" blocks. All seven models are present in
+each requested file.
+
+  csharp_57 (Claude, GPT, Llama)
+      test/Solution/Solvers/Solvers_Task_csharp_57.cs   - 281 lines
+  csharp_64 (any two of the six)
+      test/Solution/Solvers/Solvers_Task_csharp_64.cs   - 184 lines
+  csharp_43 (Llama)
+      test/Solution/Solvers/Solvers_Task_csharp_43.cs
+
+csharp_43 / Llama IS A CLEAN, SELF-CONTAINED CASE STUDY. The source:
+
+    public static List<int> MakeAPile(int n)
+    {
+        List<int> result = new List<int>();
+        result.Add(n);
+        for (int i = 1; i < n; i++)
+        {
+            if (n % 2 == 0) { n += 2; }
+            else            { n += 2; }
+            result.Add(n);
+        }
+        return result;
+    }
+
+The loop bound n is mutated inside the loop body, so i never overtakes it. The
+loop terminates only when n overflows int to negative - roughly 1.07e9
+iterations. The measurements corroborate exactly:
+
+    median 22.07 s at N=10 and 20.24 s at N=100 (input-independent, as expected)
+    allocating 8,589,938,640 B  ~=  8 bytes x 1.07e9 list elements
+
+The redundant if/else branches - both arms identical - are a useful secondary
+detail. Every assertion fails because the returned list is astronomically wrong.
+This case also independently confirms Q15: nothing stopped a 20-second run.
+
+COMPILE-FAILURE EXAMPLES CANNOT BE SUPPLIED. Which of the 560 failed is recorded
+only in the results file excluded from this audit, and the compiler errors were
+discarded (Q11). Both are recoverable by re-running phase 2 over all snippets
+and capturing ViolationDetails - a small, self-contained script that would also
+regenerate the exclusion list under a corrected reference set.
+
+--------------------------------------------------------------------------------
+Q15. ENVIRONMENT
+--------------------------------------------------------------------------------
+CONFIRMED: target framework net8.0 (test.csproj:5).
+
+The BDN artifact headers record the ACTUAL execution environment - use these
+figures, they are measured rather than declared:
+
+    BenchmarkDotNet v0.15.8
+    .NET 8.0.11 (8.0.1124.51707), X64 RyuJIT x86-64-v3
+    .NET SDK 9.0.100
+    Windows 11 (10.0.26200.8246 / 25H2)
+    Intel Core i5-8250U CPU 1.60GHz (Max 1.80GHz), Kaby Lake R
+    1 CPU, 8 logical and 4 physical cores
+
+CORRECTION - THE 5000 ms TIMEOUT WAS NEVER IN EFFECT.
+ExecutionTimeoutMs = 5000 (CodeEvaluator.cs:76) is used only inside
+RunFunctionalTests, which runs only when spec.TestCases.Count > 0
+(CodeEvaluator.cs:110). The pipeline always constructs
+    new TaskSpecification { MethodName = methodName }
+with an EMPTY TestCases list (ProgramMain.cs:172). THAT PATH NEVER EXECUTED.
+
+Correctness came from RunAndScoreTests (ProgramMain.cs:52-95), which invokes
+generated test methods by reflection with NO TIMEOUT AT ALL. Directly
+corroborated by csharp_43 / Llama running for 20+ seconds unimpeded.
+REMOVE THE TIMEOUT CLAIM, or state that no execution timeout was enforced.
+
+CORRECTION - INPUT SIZES ARE N in {10, 100}, NOT {100, 1000, 10000}.
+All 79 generated benchmark files carry the identical attribute; a scan across
+Solution/Benchmarks/*.cs returns exactly one distinct value:
+
+    79  [Params(10,100)]
+
+The ScoringEngine.cs:96 comment claiming "median across N=100/1000/10000" is
+wrong for the same reason.
+
+IMPLICATION: the largest size actually exercised is 100, which materially limits
+asymptotic claims. Several tasks likely cannot separate O(n) from O(n^2) at
+n = 100. This should be stated as a threat to validity.
+
+BDN CONFIGURATION (ProgramMain.cs:311-315):
+    ManualConfig.Create(DefaultConfig.Instance)
+                .WithOptions(ConfigOptions.DisableOptimizationsValidator)
+NO EXPLICIT ITERATION, WARMUP OR LAUNCH COUNTS - all BDN defaults, confirmed by
+the CSVs, which show "Default" for IterationCount, WarmupCount, LaunchCount and
+InvocationCount (per-task UnrollFactor = 16). The artifacts show typical runs
+converging around N = 15-29 actual iterations under the default adaptive
+strategy.
+
+JOINING: all seven models are [Benchmark] methods in one class per task, so they
+are JOINED WITHIN A TASK (same process, same setup, GPT as
+[Benchmark(Baseline = true)]). But EACH TASK IS A SEPARATE BenchmarkRunner.Run
+INVOCATION (ProgramMain.cs:315) with its own child process. Cross-model
+comparison within a task is sound; cross-task comparison carries process-level
+variance.
+
+
+================================================================================
+APPENDIX A - CLAIM STATUS AT A GLANCE
+================================================================================
+
+  Q#   CLAIM                                    STATUS
+  ---  ---------------------------------------  ---------------------------------
+  Q1   Quality formula                          CORRECT except missing min(V,10)
+  Q1   Professionalism has zero weight          CONFIRMED (also: memory unused)
+  Q1   Caps 15 / 5 explicit                     CONFIRMED (plus an uncited 10)
+  Q2   Efficiency = 100*1e4/(1e4+t)             CONFIRMED; t<=0 yields 0 not 100
+  Q3   Composite 0.2/0.2/0.6                    CONFIRMED; emergent, not chosen
+  Q3   Renormalisation to /0.8                  CONFIRMED
+  Q4   Memory column in megabytes               REFUTED - bytes/op, wrong divisor
+  Q5   Signature identifiers counted            CONFIRMED - reviewer is right
+  Q6   Professionalism = docs + null guards     INCOMPLETE - third LINQ component
+  Q7   Algorithm 1 skips literals/comments      REFUTED - no such logic
+  Q8   Prompt templates recoverable             RECOVERED - external repo (App. C)
+  Q9   Model identifiers / dates recoverable    CANNOT DETERMINE - absent
+  Q10  SonarQube scan                           REFUTED - SonarAnalyzer in-proc
+  Q11  Excluded rows' correctness uninitialised REFUTED - real measurement
+  Q12  Six benchmark failures                   ALL ENVIRONMENTAL, 5 of 6 ran
+  Q13  Task spreadsheet in repository           FOUND EXTERNALLY (App. C)
+  Q14  Case-study sources                       AVAILABLE (compile errors are not)
+  Q15  Timeout 5000 ms enforced                 REFUTED - never applied
+  Q15  N = 100 / 1000 / 10000                   REFUTED - N = 10 / 100
+  Q15  .NET 8.0                                 CONFIRMED
+
+
+================================================================================
+APPENDIX B - FILE INDEX
+================================================================================
+
+  SOURCE
+    test/ProgramMain.cs ............ Orchestration; phases 1-3; Excel I/O;
+                                     checkpointing; AllocBytesPerOp
+    test/Program.cs ................ FinalResultRowV2; BuildScoredRow; SaveToExcelV2
+    test/ScoringEngine.cs .......... ScoringConfig, ScoreInputs, ScoreResult,
+                                     Compute, Aggregate
+    test/CodeEvaluator.cs .......... Isolated compile; Roslyn static metrics;
+                                     naming; professionalism
+    test/SonarQubeEvaluator.cs ..... SonarAnalyzer reflection loading; ratings;
+                                     tech-debt model
+    test/SolutionWriter.cs ......... Generator that produced the shipped corpus
+    test/SolutionExport.cs ......... Second, unused generator; spreadsheet schema
+    test/CodeGenerator.cs .......... Superseded four-model generator
+    test/TestUtils.cs .............. Thread-local pass/fail scoring helper
+    test/Model/AiScore.cs .......... Success-rate value object
+    test/test.csproj ............... Package versions; SonarAnalyzer copy target
+
+  GENERATED CORPUS
+    test/Solution/Solvers/ ......... 80 files, 7 model namespaces each
+    test/Solution/Tests/ ........... 80 files, TestRunner with Run_<Model>()
+    test/Solution/Benchmarks/ ...... 79 files, [Params(10,100)]
+
+  EVIDENCE ARTIFACTS (not in git; present in working tree)
+    test/bin/Release/net8.0/BenchmarkDotNet.Artifacts/results/*.csv
+        79 result CSVs. Authoritative Median and Allocated columns.
+    test/bin/Release/net8.0/BenchmarkDotNet.Artifacts/*.log
+        Per-run logs. Source of the Q12 failure diagnoses.
+    test/bin/Release/net8.0/evaluation_results.checkpoint.json
+        79 task IDs marked complete, including the five failed ones.
+
+  DOCUMENTATION
+    EVALUATION_FLOW.txt ............ Plain-language pipeline description and
+                                     column glossary. Note: its claim that
+                                     non-compiling rows avoid "a fake zero" is
+                                     accurate, but see Q11 for why the flag
+                                     fires more often than it should.
+
+================================================================================
+APPENDIX C - LATE FINDINGS: THE INPUT WORKBOOK AND THE PROMPTS
+================================================================================
+Added after the main audit, in response to the question "where is the main Excel
+file that produces the tests and C# code?". The answer changes the verdicts on
+Q8 and Q13 and explains the origin of the incorrect N claim in Q15.
+
+--------------------------------------------------------------------------------
+C.1  WHERE THE INPUT WORKBOOK IS
+--------------------------------------------------------------------------------
+The workbook that SolutionExport.ReadSolutions consumes is NOT under
+...\Paper\test, and not anywhere under ...\Paper. It lives in a SEPARATE,
+EARLIER PAPER REPOSITORY:
+
+    C:\Users\moham\OneDrive\Desktop\llm4se-csharp-benchmark_paper\
+
+    Code\test\bin\Debug\net8.0\benchmark.xlsx   (81 rows: header + 80 tasks)
+        Sheet "Tasks". Task definitions AND the prompt templates.
+        A task_id | B prompt   | C test       | D language
+        E description | F entry_point | G canonical_solution
+        H natural_language | I our_prompt | J benchmark_prompt
+
+    Code\test\bin\Debug\net8.0\output.xlsx      (81 rows)
+        Sheet "Tasks". The same tasks PLUS generated model answers.
+        A task_id .. H natural_language | I our_prompt
+        J Benchmark | K ChatGpt | L Gemini | M Grok | N Claude
+        O benchmark_prompt
+
+Columns A-H of benchmark.xlsx match the TaskRecord class in ProgramMain.cs:11-21
+FIELD FOR FIELD. This is the file that type was written to read.
+
+RELATIONSHIP TO THE CURRENT STUDY. output.xlsx is the FOUR-MODEL ANCESTOR of the
+workbook the current pipeline expects. The model columns already agree with
+SolutionExport.cs:31-42 for the first four:
+
+    K = ChatGpt   L = Gemini   M = Grok   N = Claude      (both files agree)
+    O = Mistral   P = DeepSeek Q = Llama  T = Benchmark   (code expects; the
+                                                           ancestor has
+                                                           O = benchmark_prompt)
+
+So the seven-model workbook is this file extended: O/P/Q became the three added
+models and Benchmark moved to T.
+
+*** THE SEVEN-MODEL WORKBOOK ITSELF WAS NOT FOUND ON DISK. ***
+Searched: the whole ...\Paper tree including bin/obj, the 72 MB test.zip
+snapshot, and the entire ...\OneDrive\Desktop tree. The only other workbooks are
+unrelated LeetCode datasets (0-100.xlsx; LeetCode_*.xlsx, 3080 rows, two models)
+and pipeline OUTPUT files. Check OneDrive version history, or another machine.
+This is a reproducibility risk worth resolving before submission: the seven-model
+inputs currently exist only as the generated .cs corpus.
+
+RELATED ARTIFACTS IN THAT SAME REPO (useful, and not present in ...\Paper\test):
+    Code\test\Evaluation_Results.xlsx    24 result rows, 9-column early schema
+    Data\Resualt.xlsx                    340 result rows, same early schema
+    figures\fig1..fig5, fig_*.png        11 rendered paper figures
+    Paper\ceurart.cls, cc-by.pdf         CEUR-WS LaTeX template
+    Code\test\CodeQualityAnalyzer.cs     a file with no counterpart in the
+                                         current repo
+    ...BenchmarkDotNet.Artifacts\results\BenchmarkRun-joined-*.csv
+                                         March 2026 JOINED runs - note these are
+                                         joined across tasks, unlike the current
+                                         per-task runs (see Q15)
+
+ALSO NOTE: ...\Paper\Benchmarks\ contains Benchmark_Task_csharp_11.cs - the
+harness whose absence from ...\Paper\test explains the csharp_11 gap in Q12.
+Restoring that one file makes csharp_11 benchmarkable.
+
+--------------------------------------------------------------------------------
+C.2  THE PROMPT TEMPLATES (Q8) - VERBATIM
+--------------------------------------------------------------------------------
+Both are per-row columns rather than code-level format strings: the fully
+instantiated prompt was stored for every task. The Input JSON is embedded with
+the task's own fields, HTML-escaped (\u003C for <, \u0027 for ').
+
+===== our_prompt (solution prompt), column I, task csharp/1 =====
+
+Role: You are an expert C# Algorithm Developer.
+
+                Task: I will provide a JSON object containing a C# problem (prompt, entry_point, description). Your goal is to implement the solution method inside a class named Solver. Strict Coding Rules: Class Name: You must wrap the method in a public class Solver. Signature: Use the exact return type and method name defined in the entry_point and prompt. No Namespace: Do NOT wrap your code in a namespace. My system will add that later. No Main: Do NOT include a Main method. Dependencies: Include any necessary using statements (like System.Linq) at the very top.
+
+                Input JSON: "{"task_id":"csharp/1","prompt":"using System;\nusing System.Collections.Generic;\nusing System.Linq;\nusing System.Text.RegularExpressions;\nusing KellermanSoftware.CompareNetObjects;\n\nnamespace Solution\n{\n    public class Program\n    {\n        /// \u003Csummary\u003E \n        /// You\u0027re an expert C# programmer\n        /// For a given list of integers, return a tuple consisting of a sum and a product of all the integers in a list.\n        /// Empty sum should be equal to 0 and empty product should be equal to 1.\n        /// \u003E\u003E\u003E SumProduct([])\n        /// (0, 1)\n        /// \u003E\u003E\u003E SumProduct([1, 2, 3, 4])\n        /// (10, 24)\n        /// \n        /// \u003C/summary\u003E\n        public static List\u003Cint\u003E SumProduct (List\u003Cint\u003E numbers) \n        {","entry_point":"SumProduct","description":"For a given list of integers, return a tuple consisting of a sum and a product of all the integers in a list.\nEmpty sum should be equal to 0 and empty product should be equal to 1.\n\u003E\u003E\u003E sum_product([])\n(0, 1)\n\u003E\u003E\u003E sum_product([1, 2, 3, 4])\n(10, 24)\n"}"
+
+                Output: Provide only the C# code block. No explanations.
+
+===== benchmark_prompt, column J, task csharp/1 (Input JSON block elided;
+      it is identical to the one above) =====
+
+Role:
+You are an expert C# Performance Architect specializing in BenchmarkDotNet.
+
+Objective:
+I will provide a JSON object describing a coding problem. Your task is to write a BenchmarkRunner class that tests 4 existing solutions (GPT, Gemini, Claude, Grok) against each other.
+
+Input JSON Fields:
+    task_id: Unique ID (e.g., "csharp/0").
+    entry_point: The method name to call (e.g., "BelowZero").
+    prompt: Contains the method signature and types.
+    description: The logic of the problem.
+
+Strict Implementation Rules:
+    Namespace Naming:
+        You must sanitize task_id. Replace /, -, and spaces with _.
+        Example: csharp/0 becomes csharp_0.
+        The namespace must be: Benchmarks.{task_id_sanitized}
+    Class & Attributes:
+        Class name: public class BenchmarkRunner
+        Attributes: [MemoryDiagnoser], [RankColumn], [Orderer(SummaryOrderPolicy.FastestToSlowest)]
+        Params: [Params(100, 1000, 10000)] public int N { get; set; }
+    Data Generation ([GlobalSetup]):
+        CRITICAL: Analyze the description and entry_point. You must generate Worst-Case Scenario data.
+        Why? If the code exits early (e.g., finds a value in index 0), the benchmark will show 0ns.
+        Instruction: Create data that forces the solver to process the entire N items.
+        Example: If the problem is "Return true if sum < 0", generate a list that stays positive until the very last item.
+    The Benchmark Methods:
+        You must define exactly 4 methods: GPT, Gemini, Claude, Grok.
+        GPT must have [Benchmark(Baseline = true)].
+        The methods must return the result (do not use void) to prevent JIT optimization.
+        Calling Convention: You must call the solvers using this exact fully qualified name pattern:
+        return Benchmarks.{task_id_sanitized}.{AI_NAME}.Solver.{entry_point}(_data);
+
+Output:
+Provide ONLY the C# code. Do not include markdown code blocks or explanations.
+
+OBSERVATIONS FOR THE METHODOLOGY SECTION:
+  - The solution prompt mandates "public class Solver", no namespace, and no
+    Main. The corpus obeys this, which is why SolutionWriter can safely wrap
+    each answer in a namespace block.
+  - The benchmark prompt is a FOUR-MODEL artifact ("exactly 4 methods: GPT,
+    Gemini, Claude, Grok"). The seven-model revision of this prompt was not
+    found. The generated seven-model harnesses do contain all seven methods,
+    so an updated prompt existed; it is simply not on disk.
+  - NEITHER PROMPT SETS TEMPERATURE OR ANY DECODING PARAMETER. Q9 stands.
+  - The prompts were stored per row, fully instantiated. That is good practice
+    and should be stated in the paper as the provenance record.
+
+*** ORIGIN OF THE INCORRECT N CLAIM (Q15) ***
+The benchmark prompt INSTRUCTS the model to emit [Params(100, 1000, 10000)].
+That instruction is where the manuscript's "N = 100, 1000, 10000" came from.
+It is a specification of intent, not a record of what ran. Every one of the 79
+generated harnesses in the current corpus carries [Params(10,100)], and the
+BenchmarkDotNet artifacts confirm only N = 10 and N = 100 were ever executed.
+The sizes were reduced at some point after generation - plausibly because the
+larger inputs were too slow, which is consistent with the four build timeouts
+in Q12. THE MANUSCRIPT MUST REPORT N = {10, 100}, the executed values.
+
+--------------------------------------------------------------------------------
+C.3  ASSERTION COUNTS (Q13) - ANSWERED
+--------------------------------------------------------------------------------
+Computed over the `test` column (C) of benchmark.xlsx, all 80 tasks, counting
+compareLogic.Compare(...) call sites:
+
+    tasks with a test field ....  80
+    minimum ....................   1
+    median .....................   7
+    maximum ....................  104
+    mean .......................   8.5
+    csharp/1 ...................   5
+
+CAVEAT: this is the 80-task set as it stood in the four-model revision. Task IDs
+(csharp_0 .. csharp_79) and entry points match the current corpus, and the
+csharp/1 test body below matches the generated Tests_Task_csharp_1.cs line for
+line, so the task set is almost certainly unchanged. State that as an assumption
+if the seven-model workbook cannot be recovered to confirm it.
+
+===== csharp/1 `test` field, verbatim =====
+
+        public static void Main(string[] args)
+        {
+            CompareLogic compareLogic = new CompareLogic();
+            var actual1 = SumProduct(new List<int> {});
+            var expected1 = new List<int> {0,1};
+            var result1 = compareLogic.Compare(actual1, expected1);
+            if (!result1.AreEqual) {throw new Exception("Exception --- test case 0 failed to pass");}
+
+            var actual2 = SumProduct(new List<int> {1,1,1});
+            var expected2 = new List<int> {3,1};
+            var result2 = compareLogic.Compare(actual2, expected2);
+            if (!result2.AreEqual) {throw new Exception("Exception --- test case 1 failed to pass");}
+
+            var actual3 = SumProduct(new List<int> {100,0});
+            var expected3 = new List<int> {100,0};
+            var result3 = compareLogic.Compare(actual3, expected3);
+            if (!result3.AreEqual) {throw new Exception("Exception --- test case 2 failed to pass");}
+
+            var actual4 = SumProduct(new List<int> {3,5,7});
+            var expected4 = new List<int> {15,105};
+            var result4 = compareLogic.Compare(actual4, expected4);
+            if (!result4.AreEqual) {throw new Exception("Exception --- test case 3 failed to pass");}
+
+            var actual5 = SumProduct(new List<int> {10});
+            var expected5 = new List<int> {10,10};
+            var result5 = compareLogic.Compare(actual5, expected5);
+            if (!result5.AreEqual) {throw new Exception("Exception --- test case 4 failed to pass");}
+
+        }
+    }
+}
+
+TWO CORROBORATIONS OF THE Q7 ANALYSIS:
+  1. ExtractMethodBodyRobust keys on "Main(" - and every stored test field is
+     indeed wrapped in "public static void Main(string[] args)". The regex was
+     fitted to this format. It is fragile, but it matched.
+  2. The raw assertions here have exactly the shape InstrumentTestCode rewrites
+     ( if (!resultN.AreEqual) {throw new Exception("...");} ), and all five
+     survived into the generated file as TestUtils.Check calls. For csharp/1 no
+     assertions were silently dropped. Whether that holds for all 80 tasks can
+     now be CHECKED rather than assumed: compare the per-task Compare( count
+     above against the TestUtils.Check( count in Solution/Tests/. Any task where
+     they disagree lost assertions to the regex, and its correctness percentage
+     is computed over a reduced denominator. THIS CHECK IS RECOMMENDED BEFORE
+     SUBMISSION.
+
+================================================================================
+END OF REPORT
+================================================================================

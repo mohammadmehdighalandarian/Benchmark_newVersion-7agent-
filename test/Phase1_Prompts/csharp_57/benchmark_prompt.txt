@@ -1,0 +1,60 @@
+Role:
+You are an expert C# Performance Architect specializing in BenchmarkDotNet.
+
+Objective:
+I will provide a JSON object describing a coding problem. Your task is to write a BenchmarkRunner class that tests 4 existing solutions (GPT, Gemini, Claude, Grok) against each other.
+
+Input JSON Fields:
+
+    task_id: Unique ID (e.g., "csharp/0").
+
+    entry_point: The method name to call (e.g., "BelowZero").
+
+    prompt: Contains the method signature and types.
+
+    description: The logic of the problem.
+
+Strict Implementation Rules:
+
+    Namespace Naming:
+
+        You must sanitize task_id. Replace /, -, and spaces with _.
+
+        Example: csharp/0 becomes csharp_0.
+
+        The namespace must be: Benchmarks.{task_id_sanitized}
+
+    Class & Attributes:
+
+        Class name: public class BenchmarkRunner
+
+        Attributes: [MemoryDiagnoser], [RankColumn], [Orderer(SummaryOrderPolicy.FastestToSlowest)]
+
+        Params: [Params(100, 1000, 10000)] public int N { get; set; }
+
+    Data Generation ([GlobalSetup]):
+
+        CRITICAL: Analyze the description and entry_point. You must generate Worst-Case Scenario data.
+
+        Why? If the code exits early (e.g., finds a value in index 0), the benchmark will show 0ns.
+
+        Instruction: Create data that forces the solver to process the entire N items.
+
+        Example: If the problem is "Return true if sum < 0", generate a list that stays positive until the very last item.
+
+    The Benchmark Methods:
+
+        You must define exactly 4 methods: GPT, Gemini, Claude, Grok.
+
+        GPT must have [Benchmark(Baseline = true)].
+
+        The methods must return the result (do not use void) to prevent JIT optimization.
+
+        Calling Convention: You must call the solvers using this exact fully qualified name pattern:
+        return Benchmarks.{task_id_sanitized}.{AI_NAME}.Solver.{entry_point}(_data);
+
+Input JSON:
+"{"task_id":"csharp/57","prompt":"using System;\nusing System.Collections.Generic;\nusing System.Linq;\nusing System.Text.RegularExpressions;\nusing KellermanSoftware.CompareNetObjects;\n\nnamespace Solution\n{\n    public class Program\n    {\n        /// \u003Csummary\u003E \n        /// You\u0027re an expert C# programmer\n        /// Everyone knows Fibonacci sequence, it was studied deeply by mathematicians in \n        /// the last couple centuries. However, what people don\u0027t know is Tribonacci sequence.\n        /// Tribonacci sequence is defined by the recurrence:\n        /// Tri(1) = 3\n        /// Tri(n) = 1 \u002B n / 2, if n is even.\n        /// Tri(n) =  Tri(n - 1) \u002B Tri(n - 2) \u002B Tri(n \u002B 1), if n is odd.\n        /// For example:\n        /// Tri(2) = 1 \u002B (2 / 2) = 2\n        /// Tri(4) = 3\n        /// Tri(3) = Tri(2) \u002B Tri(1) \u002B Tri(4)\n        /// = 2 \u002B 3 \u002B 3 = 8 \n        /// You are given a non-negative integer number n, you have to a return a list of the \n        /// first n \u002B 1 numbers of the Tribonacci sequence.\n        /// Examples:\n        /// Tri(3) = [1, 3, 2, 8]\n        /// \n        /// \u003C/summary\u003E\n        public static List\u003Cobject\u003E Tri (int n) \n        {","entry_point":"Tri","description":"Everyone knows Fibonacci sequence, it was studied deeply by mathematicians in \nthe last couple centuries. However, what people don\u0027t know is Tribonacci sequence.\nTribonacci sequence is defined by the recurrence:\ntri(1) = 3\ntri(n) = 1 \u002B n / 2, if n is even.\ntri(n) =  tri(n - 1) \u002B tri(n - 2) \u002B tri(n \u002B 1), if n is odd.\nFor example:\ntri(2) = 1 \u002B (2 / 2) = 2\ntri(4) = 3\ntri(3) = tri(2) \u002B tri(1) \u002B tri(4)\n= 2 \u002B 3 \u002B 3 = 8 \nYou are given a non-negative integer number n, you have to a return a list of the \nfirst n \u002B 1 numbers of the Tribonacci sequence.\nExamples:\ntri(3) = [1, 3, 2, 8]\n"}"
+
+Output:
+Provide ONLY the C# code. Do not include markdown code blocks or explanations.

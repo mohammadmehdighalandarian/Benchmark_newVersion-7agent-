@@ -1,0 +1,60 @@
+Role:
+You are an expert C# Performance Architect specializing in BenchmarkDotNet.
+
+Objective:
+I will provide a JSON object describing a coding problem. Your task is to write a BenchmarkRunner class that tests 4 existing solutions (GPT, Gemini, Claude, Grok) against each other.
+
+Input JSON Fields:
+
+    task_id: Unique ID (e.g., "csharp/0").
+
+    entry_point: The method name to call (e.g., "BelowZero").
+
+    prompt: Contains the method signature and types.
+
+    description: The logic of the problem.
+
+Strict Implementation Rules:
+
+    Namespace Naming:
+
+        You must sanitize task_id. Replace /, -, and spaces with _.
+
+        Example: csharp/0 becomes csharp_0.
+
+        The namespace must be: Benchmarks.{task_id_sanitized}
+
+    Class & Attributes:
+
+        Class name: public class BenchmarkRunner
+
+        Attributes: [MemoryDiagnoser], [RankColumn], [Orderer(SummaryOrderPolicy.FastestToSlowest)]
+
+        Params: [Params(100, 1000, 10000)] public int N { get; set; }
+
+    Data Generation ([GlobalSetup]):
+
+        CRITICAL: Analyze the description and entry_point. You must generate Worst-Case Scenario data.
+
+        Why? If the code exits early (e.g., finds a value in index 0), the benchmark will show 0ns.
+
+        Instruction: Create data that forces the solver to process the entire N items.
+
+        Example: If the problem is "Return true if sum < 0", generate a list that stays positive until the very last item.
+
+    The Benchmark Methods:
+
+        You must define exactly 4 methods: GPT, Gemini, Claude, Grok.
+
+        GPT must have [Benchmark(Baseline = true)].
+
+        The methods must return the result (do not use void) to prevent JIT optimization.
+
+        Calling Convention: You must call the solvers using this exact fully qualified name pattern:
+        return Benchmarks.{task_id_sanitized}.{AI_NAME}.Solver.{entry_point}(_data);
+
+Input JSON:
+"{"task_id":"csharp/34","prompt":"using System;\nusing System.Collections.Generic;\nusing System.Linq;\nusing System.Text.RegularExpressions;\nusing KellermanSoftware.CompareNetObjects;\n\nnamespace Solution\n{\n    public class Program\n    {\n        /// \u003Csummary\u003E \n        /// You\u0027re an expert C# programmer\n        /// It is the last week of the semester and the teacher has to give the grades\n        /// to students. The teacher has been making her own algorithm for grading.\n        /// The only problem is, she has lost the code she used for grading.\n        /// She has given you a list of GPAs for some students and you have to write \n        /// a function that can output a list of letter grades using the following table:\n        /// GPA       |    Letter grade\n        /// 4.0                A\u002B\n        /// \u003E 3.7                A \n        /// \u003E 3.3                A- \n        /// \u003E 3.0                B\u002B\n        /// \u003E 2.7                B \n        /// \u003E 2.3                B-\n        /// \u003E 2.0                C\u002B\n        /// \u003E 1.7                C\n        /// \u003E 1.3                C-\n        /// \u003E 1.0                D\u002B \n        /// \u003E 0.7                D \n        /// \u003E 0.0                D-\n        /// 0.0                E\n        /// \n        /// \n        /// Example:\n        /// grade_equation([4.0, 3, 1.7, 2, 3.5]) ==\u003E [\u0027A\u002B\u0027, \u0027B\u0027, \u0027C-\u0027, \u0027C\u0027, \u0027A-\u0027]\n        /// \n        /// \u003C/summary\u003E\n        public static List\u003Cstring\u003E NumericalLetterGrade (List\u003Cobject\u003E grades) \n        {","entry_point":"NumericalLetterGrade","description":"It is the last week of the semester and the teacher has to give the grades\nto students. The teacher has been making her own algorithm for grading.\nThe only problem is, she has lost the code she used for grading.\nShe has given you a list of GPAs for some students and you have to write \na function that can output a list of letter grades using the following table:\nGPA       |    Letter grade\n4.0                A\u002B\n\u003E 3.7                A \n\u003E 3.3                A- \n\u003E 3.0                B\u002B\n\u003E 2.7                B \n\u003E 2.3                B-\n\u003E 2.0                C\u002B\n\u003E 1.7                C\n\u003E 1.3                C-\n\u003E 1.0                D\u002B \n\u003E 0.7                D \n\u003E 0.0                D-\n0.0                E\n\n\nExample:\ngrade_equation([4.0, 3, 1.7, 2, 3.5]) ==\u003E [\u0027A\u002B\u0027, \u0027B\u0027, \u0027C-\u0027, \u0027C\u0027, \u0027A-\u0027]\n"}"
+
+Output:
+Provide ONLY the C# code. Do not include markdown code blocks or explanations.

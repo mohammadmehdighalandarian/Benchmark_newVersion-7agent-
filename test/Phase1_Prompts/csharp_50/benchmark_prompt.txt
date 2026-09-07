@@ -1,0 +1,60 @@
+Role:
+You are an expert C# Performance Architect specializing in BenchmarkDotNet.
+
+Objective:
+I will provide a JSON object describing a coding problem. Your task is to write a BenchmarkRunner class that tests 4 existing solutions (GPT, Gemini, Claude, Grok) against each other.
+
+Input JSON Fields:
+
+    task_id: Unique ID (e.g., "csharp/0").
+
+    entry_point: The method name to call (e.g., "BelowZero").
+
+    prompt: Contains the method signature and types.
+
+    description: The logic of the problem.
+
+Strict Implementation Rules:
+
+    Namespace Naming:
+
+        You must sanitize task_id. Replace /, -, and spaces with _.
+
+        Example: csharp/0 becomes csharp_0.
+
+        The namespace must be: Benchmarks.{task_id_sanitized}
+
+    Class & Attributes:
+
+        Class name: public class BenchmarkRunner
+
+        Attributes: [MemoryDiagnoser], [RankColumn], [Orderer(SummaryOrderPolicy.FastestToSlowest)]
+
+        Params: [Params(100, 1000, 10000)] public int N { get; set; }
+
+    Data Generation ([GlobalSetup]):
+
+        CRITICAL: Analyze the description and entry_point. You must generate Worst-Case Scenario data.
+
+        Why? If the code exits early (e.g., finds a value in index 0), the benchmark will show 0ns.
+
+        Instruction: Create data that forces the solver to process the entire N items.
+
+        Example: If the problem is "Return true if sum < 0", generate a list that stays positive until the very last item.
+
+    The Benchmark Methods:
+
+        You must define exactly 4 methods: GPT, Gemini, Claude, Grok.
+
+        GPT must have [Benchmark(Baseline = true)].
+
+        The methods must return the result (do not use void) to prevent JIT optimization.
+
+        Calling Convention: You must call the solvers using this exact fully qualified name pattern:
+        return Benchmarks.{task_id_sanitized}.{AI_NAME}.Solver.{entry_point}(_data);
+
+Input JSON:
+"{"task_id":"csharp/50","prompt":"using System;\nusing System.Collections.Generic;\nusing System.Linq;\nusing System.Text.RegularExpressions;\nusing KellermanSoftware.CompareNetObjects;\n\nnamespace Solution\n{\n    public class Program\n    {\n        /// \u003Csummary\u003E \n        /// You\u0027re an expert C# programmer\n        /// In this problem, you will implement a function that takes two lists of numbers,\n        /// and determines whether it is possible to perform an Exchange of elements\n        /// between them to make lst1 a list of only even numbers.\n        /// There is no limit on the number of Exchanged elements between lst1 and lst2.\n        /// If it is possible to Exchange elements between the lst1 and lst2 to make\n        /// all the elements of lst1 to be even, return \u0022YES\u0022.\n        /// Otherwise, return \u0022NO\u0022.\n        /// For example:\n        /// Exchange([1, 2, 3, 4], [1, 2, 3, 4]) =\u003E \u0022YES\u0022\n        /// Exchange([1, 2, 3, 4], [1, 5, 3, 4]) =\u003E \u0022NO\u0022\n        /// It is assumed that the input lists will be non-empty.\n        /// \n        /// \u003C/summary\u003E\n        public static string Exchange (List\u003Cint\u003E lst1, List\u003Cint\u003E lst2) \n        {","entry_point":"Exchange","description":"In this problem, you will implement a function that takes two lists of numbers,\nand determines whether it is possible to perform an exchange of elements\nbetween them to make lst1 a list of only even numbers.\nThere is no limit on the number of exchanged elements between lst1 and lst2.\nIf it is possible to exchange elements between the lst1 and lst2 to make\nall the elements of lst1 to be even, return \u0022YES\u0022.\nOtherwise, return \u0022NO\u0022.\nFor example:\nexchange([1, 2, 3, 4], [1, 2, 3, 4]) =\u003E \u0022YES\u0022\nexchange([1, 2, 3, 4], [1, 5, 3, 4]) =\u003E \u0022NO\u0022\nIt is assumed that the input lists will be non-empty.\n"}"
+
+Output:
+Provide ONLY the C# code. Do not include markdown code blocks or explanations.
