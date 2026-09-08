@@ -13,6 +13,12 @@
     <PackageReference Include="ClosedXML" Version="0.105.0" />
     <PackageReference Include="CompareNETObjects" Version="4.84.0" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.21.0" />
+    <!-- SonarAnalyzer's rule types bind against Microsoft.CodeAnalysis.Workspaces.
+         Without it, Assembly.GetTypes() throws ReflectionTypeLoadException, the
+         loader falls back to the types that did resolve, and 154 analyzer types
+         are dropped silently. Version tracks Microsoft.CodeAnalysis.CSharp 4.14.0,
+         which arrives transitively from SonarAnalyzer.CSharp. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
     <!-- SonarAnalyzer: kept as analyzer-only package (no lib/ folder).
          ExcludeAssets=analyzers stops it running on *our* code during build.
          GeneratePathProperty lets the target below copy the DLL to output

@@ -1,4 +1,4 @@
-// =====================================================================
+﻿// =====================================================================
 //  TsvExport.cs  -  PHASE 4 export
 // ---------------------------------------------------------------------
 //  The pipeline wrote .xlsx only; the TSV analysed in the paper was
@@ -80,8 +80,11 @@ namespace EvaluatedCodeGeneration
                 "Time (ns)", "Memory (Bytes)",
                 "Complexity", "Cognitive Cx", "Nesting", "Naming Violations", "Professionalism",
                 "Excluded", "Exclusion Reason",
-                "SQ Total Issues", "SQ Errors", "SQ Warnings", "SQ Info",
-                "SQ Tech Debt (min)", "SQ Maintainability", "SQ Reliability", "SQ Rules"
+                "Compile Errors", "Compile Diagnostics",
+                "SA Scan Status", "SA Total Issues", "SA Errors", "SA Warnings", "SA Info",
+                "SA Analyzer Crashes", "SA Remediation Effort (min, local)",
+                "SA Maintainability Grade (local)", "SA Reliability Grade (local)", "SA Rules",
+                "Benchmark Sizes", "Benchmark Status"
             };
 
             var sb = new StringBuilder();
@@ -104,14 +107,20 @@ namespace EvaluatedCodeGeneration
                   .Append(row.ProfessionalismScore).Append('\t')
                   .Append(row.Excluded ? "TRUE" : "FALSE").Append('\t')
                   .Append(Escape(row.ExclusionReason)).Append('\t')
-                  .Append(row.SQ_TotalIssues).Append('\t')
-                  .Append(row.SQ_Errors).Append('\t')
-                  .Append(row.SQ_Warnings).Append('\t')
-                  .Append(row.SQ_Info).Append('\t')
-                  .Append(Num(row.SQ_TechDebtMinutes)).Append('\t')
-                  .Append(Escape(row.SQ_MaintainabilityRating)).Append('\t')
-                  .Append(Escape(row.SQ_ReliabilityRating)).Append('\t')
-                  .Append(Escape(row.SQ_TriggeredRules)).Append('\n');
+                  .Append(row.CompileErrorCount).Append('\t')
+                  .Append(Escape(row.CompileDiagnostics)).Append('\t')
+                  .Append(Escape(row.SA_ScanStatus)).Append('\t')
+                  .Append(row.SA_TotalIssues).Append('\t')
+                  .Append(row.SA_Errors).Append('\t')
+                  .Append(row.SA_Warnings).Append('\t')
+                  .Append(row.SA_Info).Append('\t')
+                  .Append(row.SA_AnalyzerCrashes).Append('\t')
+                  .Append(Num(row.SA_RemediationMinutes)).Append('\t')
+                  .Append(Escape(row.SA_MaintainabilityGrade)).Append('\t')
+                  .Append(Escape(row.SA_ReliabilityGrade)).Append('\t')
+                  .Append(Escape(row.SA_TriggeredRules)).Append('\t')
+                  .Append("").Append('\t')          // Benchmark Sizes: phase 3 fills this
+                  .Append("not-run").Append('\n');  // Benchmark Status
             }
 
             File.WriteAllText(tsvPath, sb.ToString(), new UTF8Encoding(false));

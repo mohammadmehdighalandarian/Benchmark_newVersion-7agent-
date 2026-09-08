@@ -3,8 +3,29 @@ using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
 
+/// <summary>
+/// Raised when a task's test harness cannot be generated faithfully.
+/// Generating a partial or empty one is the failure mode this replaces:
+/// it compiles, reports success, and inflates correctness.
+/// </summary>
+public sealed class TestGenerationException : Exception
+{
+    public string TaskId { get; }
+
+    public TestGenerationException(string taskId, string reason)
+        : base($"[{taskId}] test generation failed: {reason}")
+        => TaskId = taskId;
+}
+
 public class SolutionWriter
 {
+    /// <summary>
+    /// Tasks whose test harness could not be generated. A task listed here
+    /// has no test file, so it cannot be scored as passing by default. The
+    /// caller is expected to persist this list.
+    /// </summary>
+    public List<TestGenerationException> Failures { get; } = new List<TestGenerationException>();
+
     public void CreateFiles(SolutionExport data)
     {
         string safeTaskId = data.TaskId.Replace("/", "_").Replace("-", "_").Replace(" ", "");
@@ -26,7 +47,19 @@ public class SolutionWriter
 
         CreateSolversFile(data, safeTaskId, solversFolder);
         CreateBenchmarkFile(data, safeTaskId, benchmarksFolder);
-        CreateTestFile(data, safeTaskId, testsFolder);
+
+        // A failed test generation is recorded and leaves NO test file
+        // behind, rather than writing a sentinel comment into one. The task
+        // then has no assertions to pass, which is the honest outcome.
+        try
+        {
+            CreateTestFile(data, safeTaskId, testsFolder);
+        }
+        catch (TestGenerationException ex)
+        {
+            Failures.Add(ex);
+            Console.WriteLine($"   [FAILED]  Test: {ex.Message}");
+        }
     }
 
     // ---------------------------------------------------------
@@ -129,11 +162,11 @@ public class SolutionWriter
         string fullPath = Path.Combine(folder, fileName);
         string entryPoint = data.EntryPoint;
 
-        // 1. Extract the raw body
-        string rawBody = ExtractMethodBodyRobust(data.Test);
+        // 1. Extract the raw body (raises if extraction fails)
+        string rawBody = ExtractMethodBodyRobust(data.Test, safeTaskId);
 
-        // 2. CONVERT TO NON-BREAKING LOGIC
-        string instrumentedBody = InstrumentTestCode(rawBody);
+        // 2. CONVERT TO NON-BREAKING LOGIC (raises if assertions are dropped)
+        string instrumentedBody = InstrumentTestCode(rawBody, safeTaskId);
 
         StringBuilder sb = new StringBuilder();
         sb.AppendLine($"// Auto-generated Tests for Task: {safeTaskId}");
@@ -166,13 +199,42 @@ public class SolutionWriter
 
     // --- HELPER METHODS ---
 
-    private string InstrumentTestCode(string code)
+    // Assertions in the source test body, counted by their comparison call
+    // rather than by the shape the rewriter happens to recognise.
+    private static readonly Regex SourceAssertionPattern =
+        new Regex(@"compareLogic\s*\.\s*Compare\s*\(", RegexOptions.IgnoreCase);
+
+    private static readonly Regex InstrumentedAssertionPattern =
+        new Regex(@"TestUtils\s*\.\s*Check\s*\(");
+
+    // -------------------------------------------------------------------
+    //  Rewrites assertions into non-throwing, counted TestUtils.Check calls.
+    //
+    //  The regex recognises one exact shape. An assertion written any other
+    //  way used to be left un-instrumented, which meant it never entered the
+    //  pass or fail counts: it did not fail, it disappeared, and the task's
+    //  correctness was then computed over a reduced denominator.
+    //
+    //  The rewrite is still pattern-based, but it is now CHECKED: the number
+    //  of assertions in the source must equal the number instrumented, and a
+    //  shortfall raises instead of passing silently.
+    // -------------------------------------------------------------------
+    private string InstrumentTestCode(string code, string taskId)
     {
-        // Replaces: if (!x.AreEqual) { throw... } 
-        // With: TestUtils.Check(x, "...");
         string pattern = @"if\s*\(\!([a-zA-Z0-9_]+)\.AreEqual\)\s*\{\s*throw new Exception\(\""(.*?)\""\);\s*\}";
         string replacement = "TestUtils.Check($1, \"$2\");";
-        return Regex.Replace(code, pattern, replacement);
+        string instrumented = Regex.Replace(code, pattern, replacement);
+
+        int expected = SourceAssertionPattern.Matches(code).Count;
+        int actual   = InstrumentedAssertionPattern.Matches(instrumented).Count;
+
+        if (actual < expected)
+            throw new TestGenerationException(taskId,
+                $"instrumentation dropped {expected - actual} of {expected} assertion(s): " +
+                "they would neither pass nor fail, and correctness would be computed " +
+                "over a reduced denominator.");
+
+        return instrumented;
     }
 
     private string CreateTestMethod(string methodName, string body, string entryPoint, string namespacePrefix)
@@ -188,16 +250,32 @@ public class SolutionWriter
         return sb.ToString();
     }
 
-    // Robust extractor using brace counting
-    private string ExtractMethodBodyRobust(string rawCode)
+    // -------------------------------------------------------------------
+    //  Extracts the body of the test harness's Main method.
+    //
+    //  Every failure path used to return either a sentinel comment or the
+    //  unchanged input, and the result was written into generated source
+    //  regardless. The worst case produced a test method containing zero
+    //  assertions, which compiled and reported success: a solution whose
+    //  tests could not be extracted scored as passing.
+    //
+    //  All four now raise. A test file is never generated from an
+    //  extraction that did not work.
+    // -------------------------------------------------------------------
+    private string ExtractMethodBodyRobust(string rawCode, string taskId)
     {
-        if (string.IsNullOrEmpty(rawCode)) return "// No test code found";
+        if (string.IsNullOrEmpty(rawCode))
+            throw new TestGenerationException(taskId, "no test code in the source record.");
 
         var mainMatch = Regex.Match(rawCode, @"Main\s*\(.*?\)");
-        if (!mainMatch.Success) return rawCode;
+        if (!mainMatch.Success)
+            throw new TestGenerationException(taskId,
+                "no Main( signature found, so the assertion body could not be located.");
 
         int startIndex = rawCode.IndexOf('{', mainMatch.Index);
-        if (startIndex == -1) return rawCode;
+        if (startIndex == -1)
+            throw new TestGenerationException(taskId,
+                "Main( found but no opening brace follows it.");
 
         int openBraces = 0;
         int endIndex = -1;
@@ -214,7 +292,11 @@ public class SolutionWriter
             }
         }
 
-        if (endIndex == -1) return "// Error parsing test body";
+        if (endIndex == -1)
+            throw new TestGenerationException(taskId,
+                "braces in the test body are unbalanced, so its extent could not be determined. " +
+                "Note the counter is not aware of string literals, character literals or " +
+                "comments, so a brace inside any of those will trip this.");
 
         return rawCode.Substring(startIndex + 1, endIndex - startIndex - 1).Trim();
     }

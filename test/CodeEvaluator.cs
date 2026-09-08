@@ -6,8 +6,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Text.Json;
-using System.Threading.Tasks;
 
 namespace EvaluatedCodeGeneration
 {
@@ -34,9 +32,14 @@ namespace EvaluatedCodeGeneration
     public class CodeQualityReport
     {
         public bool Compiles { get; set; }
-        public bool PassesTests { get; set; }
-        public TestInfo TestInfo { get; set; } = new TestInfo();
         public List<string> ViolationDetails { get; set; } = new List<string>();
+
+        // Compiler diagnostics, retained so a compile failure can be
+        // diagnosed after the fact. These used to be written into
+        // ViolationDetails and then dropped on the floor: BuildScoredRow
+        // never copied them and no writer emitted them.
+        public int CompileErrorCount { get; set; }
+        public string CompileDiagnostics { get; set; } = "";
 
         // Static metrics (raw)
         public int CyclomaticComplexity { get; set; }
@@ -50,30 +53,23 @@ namespace EvaluatedCodeGeneration
         public int ProfessionalismScore { get; set; }  // 0..3, see AnalyzeProfessionalism
     }
 
-    public class TestInfo
-    {
-        public bool AllTestPasses { get; set; }
-        public int PassTestCount { get; set; }
-        public int FailTestCount { get; set; }
-        public double SuccessRate { get; set; }
-        public double FailRate { get; set; }
-    }
-
     public class TaskSpecification
     {
         public string MethodName { get; set; } = "";
-        public List<TestCase> TestCases { get; set; } = new List<TestCase>();
-    }
-
-    public class TestCase
-    {
-        public object[] Inputs { get; set; } = Array.Empty<object>();
-        public object? Expected { get; set; }
     }
 
     public class CodeEvaluator
     {
-        private const int ExecutionTimeoutMs = 5000;
+        // NO EXECUTION TIMEOUT IS ENFORCED. There used to be a 5000 ms
+        // constant here, used only by an inline-test path the pipeline never
+        // reached: the call site always built an empty TestCases list.
+        // Correctness came from the reflection runner in ProgramMain, which
+        // has no timeout, so the constant described a bound that never
+        // applied. The dead path and the constant are removed rather than
+        // wired up: the manuscript reports that no timeout was enforced, and
+        // enforcing one now would change what csharp_43 looks like, since
+        // that solution ran for 21 seconds precisely because nothing
+        // stopped it.
 
         public CodeQualityReport Evaluate(string aiCode, TaskSpecification spec)
         {
@@ -87,7 +83,17 @@ namespace EvaluatedCodeGeneration
 
             if (!report.Compiles)
             {
-                foreach (var diag in emitResult.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error))
+                var errors = emitResult.Diagnostics
+                    .Where(d => d.Severity == DiagnosticSeverity.Error)
+                    .ToList();
+
+                report.CompileErrorCount = errors.Count;
+                report.CompileDiagnostics = string.Join("; ", errors
+                    .Select(d => $"{d.Id} {d.GetMessage()}")
+                    .Distinct()
+                    .Take(10));
+
+                foreach (var diag in errors)
                     report.ViolationDetails.Add($"Compile Error: {diag.GetMessage()}");
                 // Do NOT fabricate a score here. The pipeline flags this row
                 // as Excluded via ScoringEngine (Bug 3 fix). We still parse
@@ -104,15 +110,7 @@ namespace EvaluatedCodeGeneration
                     .FirstOrDefault(m => m.Name == spec.MethodName);
 
                 if (methodInfo == null)
-                {
                     report.ViolationDetails.Add($"Logic Error: Method '{spec.MethodName}' not found.");
-                }
-                else if (spec.TestCases.Count > 0)
-                {
-                    // Optional inline tests (used by unit tests of THIS engine).
-                    report.TestInfo = RunFunctionalTests(methodInfo, type!, spec, report);
-                    report.PassesTests = report.TestInfo.AllTestPasses;
-                }
             }
 
             // --- STEP 2: STATIC ANALYSIS (always attempt) ---
@@ -126,72 +124,68 @@ namespace EvaluatedCodeGeneration
             return report;
         }
 
-        private TestInfo RunFunctionalTests(MethodInfo method, Type type, TaskSpecification spec, CodeQualityReport report)
+        // -----------------------------------------------------------------
+        //  Reference set for the isolated compile.
+        //
+        //  This used to be seven hand-listed metadata references (object,
+        //  Enumerable, List<>, Console, Regex, System.Runtime, netstandard).
+        //  Any solution touching anything outside that closure failed the
+        //  isolated compile while compiling and passing its tests in the
+        //  real project build, so the Excluded column measured the sandbox
+        //  rather than the model.
+        //
+        //  The trusted-platform-assemblies list is the set the host process
+        //  was actually compiled and started against: the framework plus
+        //  every package this project references, including
+        //  KellermanSoftware.Compare-NET-Objects. Using it makes the
+        //  isolated compile agree with the real build by construction, and
+        //  it cannot drift as packages are added.
+        // -----------------------------------------------------------------
+        private static readonly Lazy<List<MetadataReference>> ProjectReferences =
+            new Lazy<List<MetadataReference>>(BuildProjectReferences);
+
+        /// <summary>Number of metadata references the isolated compile uses.</summary>
+        public static int ReferenceCount => ProjectReferences.Value.Count;
+
+        /// <summary>
+        /// The shared reference set, so the analyzer pass compiles each
+        /// snippet against exactly what the compile check does.
+        /// </summary>
+        public static IReadOnlyList<MetadataReference> CompilationReferences => ProjectReferences.Value;
+
+        private static List<MetadataReference> BuildProjectReferences()
         {
-            var testDetail = new TestInfo { AllTestPasses = true };
-            int totalTests = spec.TestCases.Count;
-            if (totalTests == 0) return testDetail;
+            var refs = new List<MetadataReference>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            object? instance = method.IsStatic ? null : Activator.CreateInstance(type);
-
-            foreach (var test in spec.TestCases)
+            void TryAdd(string path)
             {
-                try
-                {
-                    var task = Task.Run(() => method.Invoke(instance, test.Inputs));
-                    if (task.Wait(TimeSpan.FromMilliseconds(ExecutionTimeoutMs)))
-                    {
-                        var actual = task.Result;
-                        if (!ObjectsAreEqual(actual, test.Expected))
-                        {
-                            testDetail.FailTestCount++;
-                            testDetail.AllTestPasses = false;
-                        }
-                        else testDetail.PassTestCount++;
-                    }
-                    else
-                    {
-                        testDetail.FailTestCount++;
-                        testDetail.AllTestPasses = false;
-                        report.ViolationDetails.Add($"Timeout > {ExecutionTimeoutMs}ms (infinite loop?)");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    testDetail.FailTestCount++;
-                    testDetail.AllTestPasses = false;
-                    report.ViolationDetails.Add($"Runtime Error: {ex.InnerException?.Message ?? ex.Message}");
-                }
+                if (string.IsNullOrEmpty(path)) return;
+                if (!path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)) return;
+                if (!File.Exists(path)) return;
+                if (!seen.Add(Path.GetFileName(path))) return;
+                try { refs.Add(MetadataReference.CreateFromFile(path)); }
+                catch { /* native or unreadable image: not a managed reference */ }
             }
 
-            testDetail.SuccessRate = (double)testDetail.PassTestCount / totalTests * 100;
-            testDetail.FailRate = 100 - testDetail.SuccessRate;
-            return testDetail;
-        }
+            if (AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") is string tpa)
+                foreach (var path in tpa.Split(Path.PathSeparator))
+                    TryAdd(path);
 
-        private bool ObjectsAreEqual(object? actual, object? expected)
-        {
-            if (actual == null && expected == null) return true;
-            if (actual == null || expected == null) return false;
-            try { return JsonSerializer.Serialize(actual) == JsonSerializer.Serialize(expected); }
-            catch { return actual.Equals(expected); }
+            // Anything pulled in at runtime (Assembly.LoadFrom) is not on the
+            // TPA list; include it so the closure matches the live process.
+            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+                if (!asm.IsDynamic)
+                    TryAdd(asm.Location);
+
+            return refs;
         }
 
         private CSharpCompilation CompileCode(string code)
         {
-            var references = new List<MetadataReference>
-            {
-                MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(Enumerable).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(List<>).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(Console).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(System.Text.RegularExpressions.Regex).Assembly.Location),
-                MetadataReference.CreateFromFile(Assembly.Load("System.Runtime").Location),
-                MetadataReference.CreateFromFile(Assembly.Load("netstandard").Location)
-            };
             return CSharpCompilation.Create("DynamicAiAssembly_" + Guid.NewGuid())
                 .WithOptions(new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary))
-                .AddReferences(references)
+                .AddReferences(ProjectReferences.Value)
                 .AddSyntaxTrees(CSharpSyntaxTree.ParseText(code));
         }
 
@@ -226,42 +220,103 @@ namespace EvaluatedCodeGeneration
         {
             int total = 0;
             foreach (var method in tree.GetRoot().DescendantNodes().OfType<MethodDeclarationSyntax>())
-                total += CognitiveOf(method.Body, 0);
+            {
+                SyntaxNode? body = method.Body ?? (SyntaxNode?)method.ExpressionBody;
+                total += ScoreNode(body, 0);
+            }
             return total;
         }
 
-        private int CognitiveOf(SyntaxNode? node, int nesting)
+        // -----------------------------------------------------------------
+        //  Cognitive complexity, following Campbell's specification.
+        //
+        //  Two rules were previously missing, and both inflate the metric:
+        //
+        //  1. NESTING SATURATION ON else-if. An `else if` is a flat +1 and
+        //     its body stays at the nesting level of the original `if`. The
+        //     old code saw the chained `if` as a child of the else clause
+        //     and recursed with nesting+1 each time, so a chain of n
+        //     `else if`s cost 1+2+...+n instead of n. On csharp_34 (an
+        //     11-long grade-boundary chain) that produced 91 to 105 against
+        //     SonarQube's 15; this implementation returns 15.
+        //
+        //  2. BOOLEAN SEQUENCES. A run of the same logical operator is one
+        //     increment, not one per operator: `a && b && c` scores 1, and
+        //     `a && b || c` scores 2 because the operator changes.
+        //
+        //  Cyclomatic complexity already agreed closely with SonarQube
+        //  (r = 0.986) and is deliberately left alone.
+        // -----------------------------------------------------------------
+        private int ScoreNode(SyntaxNode? node, int nesting)
         {
             if (node == null) return 0;
+
+            switch (node)
+            {
+                // Reached only for a fresh `if`. An `else if` is consumed by
+                // the else-chain walk inside ScoreIfChain and never arrives
+                // here, which is what keeps its nesting level flat.
+                case IfStatementSyntax ifs:
+                    return ScoreIfChain(ifs, nesting);
+
+                case ForStatementSyntax:
+                case ForEachStatementSyntax:
+                case WhileStatementSyntax:
+                case DoStatementSyntax:
+                case SwitchStatementSyntax:
+                case CatchClauseSyntax:
+                case ConditionalExpressionSyntax:
+                    return 1 + nesting + ScoreChildren(node, nesting + 1);
+
+                default:
+                    int score = 0;
+                    if (node is BinaryExpressionSyntax bin && IsLogical(bin) && !ContinuesRun(bin))
+                        score += 1;
+                    return score + ScoreChildren(node, nesting);
+            }
+        }
+
+        private int ScoreChildren(SyntaxNode node, int nesting)
+        {
             int score = 0;
             foreach (var child in node.ChildNodes())
-            {
-                bool increasesNesting =
-                    child is IfStatementSyntax ||
-                    child is ForStatementSyntax ||
-                    child is ForEachStatementSyntax ||
-                    child is WhileStatementSyntax ||
-                    child is DoStatementSyntax ||
-                    child is SwitchStatementSyntax ||
-                    child is CatchClauseSyntax;
+                score += ScoreNode(child, nesting);
+            return score;
+        }
 
-                if (increasesNesting)
+        private int ScoreIfChain(IfStatementSyntax ifs, int nesting)
+        {
+            int score = 1 + nesting;
+            score += ScoreNode(ifs.Condition, nesting);
+            score += ScoreNode(ifs.Statement, nesting + 1);
+
+            var elseClause = ifs.Else;
+            while (elseClause != null)
+            {
+                if (elseClause.Statement is IfStatementSyntax elseIf)
                 {
-                    score += 1 + nesting;          // base + nesting penalty
-                    score += CognitiveOf(child, nesting + 1);
+                    score += 1;                                   // flat: no nesting penalty
+                    score += ScoreNode(elseIf.Condition, nesting);
+                    score += ScoreNode(elseIf.Statement, nesting + 1);
+                    elseClause = elseIf.Else;
                 }
                 else
                 {
-                    // Boolean sequences (&&, ||) add 1 each (flat).
-                    if (child is BinaryExpressionSyntax bin &&
-                        (bin.IsKind(SyntaxKind.LogicalAndExpression) ||
-                         bin.IsKind(SyntaxKind.LogicalOrExpression)))
-                        score += 1;
-                    score += CognitiveOf(child, nesting);
+                    score += 1;                                   // plain `else`
+                    score += ScoreNode(elseClause.Statement, nesting + 1);
+                    elseClause = null;
                 }
             }
             return score;
         }
+
+        private static bool IsLogical(BinaryExpressionSyntax b) =>
+            b.IsKind(SyntaxKind.LogicalAndExpression) || b.IsKind(SyntaxKind.LogicalOrExpression);
+
+        // True when this operator continues a run of the same operator, so
+        // only the outermost node of each run is charged.
+        private static bool ContinuesRun(BinaryExpressionSyntax b) =>
+            b.Parent is BinaryExpressionSyntax parent && parent.Kind() == b.Kind();
 
         private int CalculateMaxNesting(SyntaxTree tree)
         {

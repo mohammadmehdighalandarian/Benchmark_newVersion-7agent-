@@ -47,16 +47,25 @@ public partial class Program
         public bool Excluded { get; set; }
         public string ExclusionReason { get; set; } = "";
 
-        // SonarQube metrics (from SonarAnalyzer.CSharp — kept separate from the
-        // existing Roslyn metrics so both measurement sources are in the paper)
-        public int    SQ_TotalIssues          { get; set; }
-        public int    SQ_Errors               { get; set; }   // Error severity (Blocker/Critical)
-        public int    SQ_Warnings             { get; set; }   // Warning severity (Major)
-        public int    SQ_Info                 { get; set; }   // Info/Hidden severity (Minor)
-        public double SQ_TechDebtMinutes      { get; set; }
-        public string SQ_MaintainabilityRating { get; set; } = "";
-        public string SQ_ReliabilityRating    { get; set; } = "";
-        public string SQ_TriggeredRules       { get; set; } = "";
+        // Compiler diagnostics from the isolated compile. Previously
+        // collected and then discarded, which made a compile failure
+        // impossible to diagnose after the fact.
+        public int    CompileErrorCount   { get; set; }
+        public string CompileDiagnostics  { get; set; } = "";
+
+        // SonarAnalyzer metrics - kept separate from the Roslyn metrics so
+        // both measurement sources are in the paper. The effort minutes and
+        // the A-E grades are local formulas, not SonarQube outputs.
+        public string SA_ScanStatus            { get; set; } = "";
+        public int    SA_TotalIssues           { get; set; }
+        public int    SA_Errors                { get; set; }
+        public int    SA_Warnings              { get; set; }
+        public int    SA_Info                  { get; set; }
+        public int    SA_AnalyzerCrashes       { get; set; }
+        public double SA_RemediationMinutes    { get; set; }
+        public string SA_MaintainabilityGrade  { get; set; } = "";
+        public string SA_ReliabilityGrade      { get; set; } = "";
+        public string SA_TriggeredRules        { get; set; } = "";
     }
 
     // -----------------------------------------------------------------
@@ -107,7 +116,9 @@ public partial class Program
             NamingViolations = report.NamingViolations,
             ProfessionalismScore = report.ProfessionalismScore,
             Excluded = s.Excluded,
-            ExclusionReason = s.ExclusionReason ?? ""
+            ExclusionReason = s.ExclusionReason ?? "",
+            CompileErrorCount = report.CompileErrorCount,
+            CompileDiagnostics = report.CompileDiagnostics
         };
     }
 

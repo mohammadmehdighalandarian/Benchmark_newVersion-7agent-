@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -29,15 +29,11 @@ public partial class Program
     //  be re-run without editing and recompiling this file. Running no
     //  command keeps the previous behaviour exactly: benchmarks only.
     //
-    //  None of these commands changes how anything is measured or scored.
-    //  They change only whether a phase can be STARTED from outside.
-    //
-    //  Deliberately absent: an "assemble" command. Regenerating the .cs
-    //  corpus would overwrite the 80 shipped solver/test/benchmark files,
-    //  and the two generators on disk disagree about the output format
-    //  (SolutionWriter produced the shipped corpus; SolutionExport emits a
-    //  different shape). Wiring either one behind a convenient command
-    //  invites silently rewriting the corpus the results were measured on.
+    //  `assemble` rewrites the 80 shipped solver, test and benchmark files
+    //  in place, so it requires an explicit --overwrite flag. That is not
+    //  bureaucracy: the shipped corpus is what every published number was
+    //  measured on, and regenerating it silently would leave the results
+    //  file describing code that no longer exists.
     // =====================================================================
     public static void Main(string[] args)
     {
@@ -62,6 +58,24 @@ public partial class Program
                 EvaluatedCodeGeneration.DatasetPreparation.AuditAssertionCounts(
                     Arg(args, 1, EvaluatedCodeGeneration.DatasetPreparation.DefaultWorkbookPath),
                     Arg(args, 2, Path.Combine(ProjectRoot(), "Solution", "Tests")));
+                break;
+
+            case "generate-template":
+                EvaluatedCodeGeneration.GenerationConfig.WriteTemplate(
+                    Arg(args, 1, Path.Combine(ProjectRoot(), "generation.config.json")));
+                break;
+
+            case "generate":
+                RunPhase2Generation(
+                    Arg(args, 1, EvaluatedCodeGeneration.DatasetPreparation.DefaultWorkbookPath),
+                    Arg(args, 2, Path.Combine(ProjectRoot(), "generation.config.json")),
+                    Arg(args, 3, Path.Combine(ProjectRoot(), "Phase2_Generation")));
+                break;
+
+            case "assemble":
+                RunAssemble(
+                    Arg(args, 1, EvaluatedCodeGeneration.DatasetPreparation.DefaultWorkbookPath),
+                    args.Any(a => a.Equals("--overwrite", StringComparison.OrdinalIgnoreCase)));
                 break;
 
             case "correctness":
@@ -105,6 +119,9 @@ public partial class Program
         Console.WriteLine("  prompts [workbook] [outDir]     Phase 1: build and persist every task's prompts");
         Console.WriteLine("  verify-prompts [workbook]       Check the templates reproduce the stored prompts");
         Console.WriteLine("  audit-assertions [wb] [dir]     Report assertions lost to the instrumentation regex");
+        Console.WriteLine("  generate-template [path]        Write a generation config to fill in with pinned model ids");
+        Console.WriteLine("  generate [wb] [cfg] [outDir]    Phase 2: query each model, persist raw responses");
+        Console.WriteLine("  assemble [wb] --overwrite       Rebuild the .cs corpus (REWRITES the shipped files)");
         Console.WriteLine("  correctness                     Phases 1+2: reflection tests, static analysis, SonarAnalyzer");
         Console.WriteLine("  benchmark                       Phase 3: BenchmarkDotNet (resumable) - the default");
         Console.WriteLine("  export-tsv [xlsx] [tsv]         Phase 4: write the TSV directly from the workbook");
@@ -121,6 +138,54 @@ public partial class Program
         var tasks = EvaluatedCodeGeneration.DatasetPreparation.LoadTasks(workbookPath);
         EvaluatedCodeGeneration.DatasetPreparation.WritePrompts(tasks, outDir);
         EvaluatedCodeGeneration.DatasetPreparation.VerifyAgainstWorkbook(workbookPath);
+    }
+
+    static void RunPhase2Generation(string workbookPath, string configPath, string outDir)
+    {
+        Console.WriteLine("\n--- Phase 2: generation ---");
+        var tasks = EvaluatedCodeGeneration.DatasetPreparation.LoadTasks(workbookPath);
+        var cfg   = EvaluatedCodeGeneration.GenerationConfig.Load(configPath);
+        Console.WriteLine($"  {tasks.Count} task(s) x {cfg.Models.Count} model(s), temperature {cfg.Temperature}");
+        EvaluatedCodeGeneration.GenerationPhase.RunAsync(tasks, cfg, outDir).GetAwaiter().GetResult();
+    }
+
+    // Rebuilds the .cs corpus from the workbook using SolutionWriter, the
+    // generator that produced the shipped files. Test-generation failures
+    // are recorded and leave no test file behind, so a task whose
+    // assertions could not be recovered cannot score as passing.
+    static void RunAssemble(string workbookPath, bool overwrite)
+    {
+        if (!overwrite)
+        {
+            Console.WriteLine("Refusing to run: 'assemble' rewrites the 80 shipped solver, test and");
+            Console.WriteLine("benchmark files, which is what every published number was measured on.");
+            Console.WriteLine("Re-run with --overwrite if that is what you intend.");
+            return;
+        }
+
+        Console.WriteLine("\n--- Assembling the .cs corpus from the workbook ---");
+        var solutions = SolutionExport.ReadSolutions(workbookPath);
+        var writer = new SolutionWriter();
+
+        foreach (var solution in solutions)
+            writer.CreateFiles(solution);
+
+        Console.WriteLine($"\n  {solutions.Count} task(s) assembled.");
+        if (writer.Failures.Count == 0)
+        {
+            Console.WriteLine("  No test-generation failures.");
+            return;
+        }
+
+        string path = Path.Combine(ProjectRoot(), "test_generation_failures.tsv");
+        using (var w = new StreamWriter(path, append: false))
+        {
+            w.WriteLine("task_id\treason");
+            foreach (var failure in writer.Failures)
+                w.WriteLine($"{failure.TaskId}\t{failure.Message.Replace('\t', ' ')}");
+        }
+        Console.WriteLine($"  {writer.Failures.Count} task(s) FAILED test generation and have no test file.");
+        Console.WriteLine($"  Recorded in {path}");
     }
 
     static void RunCorrectnessAndStatic(string outputPath)
@@ -209,7 +274,24 @@ public partial class Program
         return Directory.Exists(path) ? path : null;
     }
 
-    // Extracts the code block inside `namespace Benchmarks.<taskId>.<model> { ... }`.
+    // -------------------------------------------------------------------
+    //  Extracts the code inside `namespace Benchmarks.<taskId>.<model> { }`,
+    //  PREFIXED WITH THE FILE-LEVEL USING DIRECTIVES.
+    //
+    //  Those usings sit above the namespace blocks and apply to every model
+    //  in the file, so a snippet taken without them is not the compilation
+    //  unit the real build sees. Dropping them made solutions that relied on
+    //  the file's usings (rather than emitting their own) fail the isolated
+    //  compile with CS0246 for types as ordinary as List<> and HashSet<>,
+    //  and shifted overload resolution where System.Linq was involved.
+    //
+    //  This is the same failure as the restricted reference set, one level
+    //  down: the isolated compile has to reproduce the real compilation
+    //  unit, not approximate it.
+    //
+    //  A duplicated using (a model that emitted its own as well) is CS0105,
+    //  a warning, so prefixing unconditionally is safe.
+    // -------------------------------------------------------------------
     static string ExtractModelCode(string filePath, string taskId, string model)
     {
         if (!File.Exists(filePath)) return "";
@@ -226,7 +308,22 @@ public partial class Program
             else if (content[i] == '}') depth--;
             i++;
         }
-        return content.Substring(braceStart + 1, i - braceStart - 2).Trim();
+
+        string body = content.Substring(braceStart + 1, i - braceStart - 2).Trim();
+        return FileLevelUsings(content) + body;
+    }
+
+    // The using directives preceding the first namespace declaration.
+    static string FileLevelUsings(string content)
+    {
+        int firstNamespace = content.IndexOf("namespace ", StringComparison.Ordinal);
+        string header = firstNamespace < 0 ? content : content.Substring(0, firstNamespace);
+
+        var usings = Regex.Matches(header, @"^\s*using\s+[^;{}]+;", RegexOptions.Multiline)
+            .Select(m => m.Value.Trim())
+            .ToList();
+
+        return usings.Count == 0 ? "" : string.Join(Environment.NewLine, usings) + Environment.NewLine;
     }
 
     // Finds the first public method name in the extracted code snippet.
@@ -242,7 +339,7 @@ public partial class Program
         string outputPath)
     {
         var evaluator  = new CodeEvaluator();
-        var sonarQube  = new EvaluatedCodeGeneration.SonarQubeEvaluator();
+        var sonarAnalyzer = new EvaluatedCodeGeneration.SonarAnalyzerEvaluator();
         var cfg        = ScoringConfig.Default;
         string[] models = { "GPT", "Gemini", "Claude", "Grok", "Mistral", "DeepSeek", "Llama" };
 
@@ -281,19 +378,30 @@ public partial class Program
 
                 var row = BuildScoredRow(taskId, model, report, successRate, 0, 0, cfg);
 
-                // SonarQube evaluation runs on the same code snippet alongside
-                // the existing Roslyn metrics — neither replaces the other.
-                if (!string.IsNullOrWhiteSpace(code) && !row.Excluded)
+                // The SonarAnalyzer pass runs on the same snippet alongside
+                // the Roslyn metrics; neither replaces the other. It now runs
+                // for every extracted solution, not only non-excluded ones,
+                // and its status is recorded so a failed scan is never
+                // mistaken for a clean file.
+                if (!string.IsNullOrWhiteSpace(code))
                 {
-                    var sq = sonarQube.Evaluate(code);
-                    row.SQ_Errors               = sq.Errors;
-                    row.SQ_Warnings             = sq.Warnings;
-                    row.SQ_Info                 = sq.Info;
-                    row.SQ_TechDebtMinutes      = sq.TechDebtMinutes;
-                    row.SQ_MaintainabilityRating = sq.MaintainabilityRating;
-                    row.SQ_ReliabilityRating    = sq.ReliabilityRating;
-                    row.SQ_TriggeredRules       = sq.TriggeredRules;
-                    row.SQ_TotalIssues          = sq.TotalIssues;
+                    var sa = sonarAnalyzer.Evaluate(code);
+                    row.SA_ScanStatus           = sa.Status.ToString();
+                    row.SA_Errors               = sa.Errors;
+                    row.SA_Warnings             = sa.Warnings;
+                    row.SA_Info                 = sa.Info;
+                    row.SA_TotalIssues          = sa.TotalIssues;
+                    row.SA_AnalyzerCrashes      = sa.AnalyzerCrashes;
+                    row.SA_RemediationMinutes   = sa.RemediationEffortMinutes;
+                    row.SA_MaintainabilityGrade = sa.MaintainabilityGrade;
+                    row.SA_ReliabilityGrade     = sa.ReliabilityGrade;
+                    row.SA_TriggeredRules       = sa.TriggeredRules;
+                    if (!sa.Succeeded)
+                        row.SA_TriggeredRules = sa.FailureDetail;
+                }
+                else
+                {
+                    row.SA_ScanStatus = "NotAttempted";
                 }
 
                 taskRows.Add(row);
@@ -317,9 +425,15 @@ public partial class Program
             "Time (ns)", "Memory (Bytes)",
             "Complexity", "Cognitive Cx", "Nesting", "Naming Violations", "Professionalism",
             "Excluded", "Exclusion Reason",
-            // SonarQube columns (columns 16-23)
-            "SQ Total Issues", "SQ Errors", "SQ Warnings", "SQ Info",
-            "SQ Tech Debt (min)", "SQ Maintainability", "SQ Reliability", "SQ Rules"
+            // Compile diagnostics (16-17)
+            "Compile Errors", "Compile Diagnostics",
+            // SonarAnalyzer columns (18-27). The effort minutes and the A-E
+            // grades are local formulas, not SonarQube outputs.
+            "SA Scan Status", "SA Total Issues", "SA Errors", "SA Warnings", "SA Info",
+            "SA Analyzer Crashes", "SA Remediation Effort (min, local)",
+            "SA Maintainability Grade (local)", "SA Reliability Grade (local)", "SA Rules",
+            // Benchmark provenance (28-29)
+            "Benchmark Sizes", "Benchmark Status"
         };
         for (int c = 0; c < headers.Length; c++)
             ws.Cell(1, c + 1).Value = headers[c];
@@ -351,14 +465,20 @@ public partial class Program
             ws.Cell(r, 13).Value = row.ProfessionalismScore;
             ws.Cell(r, 14).Value = row.Excluded;
             ws.Cell(r, 15).Value = row.ExclusionReason;
-            ws.Cell(r, 16).Value = row.SQ_TotalIssues;
-            ws.Cell(r, 17).Value = row.SQ_Errors;
-            ws.Cell(r, 18).Value = row.SQ_Warnings;
-            ws.Cell(r, 19).Value = row.SQ_Info;
-            ws.Cell(r, 20).Value = row.SQ_TechDebtMinutes;
-            ws.Cell(r, 21).Value = row.SQ_MaintainabilityRating;
-            ws.Cell(r, 22).Value = row.SQ_ReliabilityRating;
-            ws.Cell(r, 23).Value = row.SQ_TriggeredRules;
+            ws.Cell(r, 16).Value = row.CompileErrorCount;
+            ws.Cell(r, 17).Value = row.CompileDiagnostics;
+            ws.Cell(r, 18).Value = row.SA_ScanStatus;
+            ws.Cell(r, 19).Value = row.SA_TotalIssues;
+            ws.Cell(r, 20).Value = row.SA_Errors;
+            ws.Cell(r, 21).Value = row.SA_Warnings;
+            ws.Cell(r, 22).Value = row.SA_Info;
+            ws.Cell(r, 23).Value = row.SA_AnalyzerCrashes;
+            ws.Cell(r, 24).Value = row.SA_RemediationMinutes;
+            ws.Cell(r, 25).Value = row.SA_MaintainabilityGrade;
+            ws.Cell(r, 26).Value = row.SA_ReliabilityGrade;
+            ws.Cell(r, 27).Value = row.SA_TriggeredRules;
+            ws.Cell(r, 28).Value = "";      // filled by the benchmark phase
+            ws.Cell(r, 29).Value = "not-run";
             r++;
         }
         ws.Columns().AdjustToContents();
@@ -418,6 +538,7 @@ public partial class Program
 
                 var timeByModel = new Dictionary<string, double>(StringComparer.Ordinal);
                 var memByModel  = new Dictionary<string, double>(StringComparer.Ordinal);
+                var sizes       = new SortedSet<string>(StringComparer.Ordinal);
 
                 foreach (var model in models)
                 {
@@ -428,21 +549,43 @@ public partial class Program
 
                     if (reports.Count > 0)
                     {
+                        // t is the mean of the per-size medians, as the paper states.
                         timeByModel[model] = reports.Average(rp => rp.ResultStatistics!.Median);
                         memByModel[model]  = reports.Average(rp => AllocBytesPerOp(rp));
+
+                        // The executed input sizes, recorded so the results file
+                        // cannot drift away from the harness source.
+                        foreach (var rp in reports)
+                            foreach (var param in rp.BenchmarkCase.Parameters.Items)
+                                sizes.Add($"{param.Name}={param.Value}");
                     }
                 }
 
-                UpdateBenchmarkResults(outputPath, taskId, timeByModel, memByModel, cfg);
+                // A run that produced no usable statistics is a FAILURE, not a
+                // completed task. Checkpointing it anyway is what made the
+                // affected tasks skip permanently on resume, contradicting the
+                // message this loop prints when it catches an exception.
+                if (timeByModel.Count == 0)
+                {
+                    RecordBenchmarkFailure(outputPath, taskId,
+                        "benchmark produced no usable statistics for any model");
+                    Console.WriteLine($"  [Failed] {taskId} - no usable statistics; NOT checkpointed.");
+                    continue;
+                }
+
+                UpdateBenchmarkResults(outputPath, taskId, timeByModel, memByModel,
+                                       string.Join(";", sizes), cfg);
 
                 done.Add(taskId);
                 SaveCheckpoint(checkpointPath, done);
-                Console.WriteLine($"  [Saved] {taskId} — {timeByModel.Count} model(s) updated");
+                Console.WriteLine($"  [Saved] {taskId} - {timeByModel.Count} model(s), sizes [{string.Join(";", sizes)}]");
             }
             catch (Exception ex)
             {
+                // Not checkpointed, so the next run really does retry it.
+                RecordBenchmarkFailure(outputPath, taskId, ex.Message);
                 Console.WriteLine($"  [Error] {taskId}: {ex.Message}");
-                Console.WriteLine($"           Task skipped for now; will retry on next run.");
+                Console.WriteLine($"           Not checkpointed; will retry on next run.");
             }
         }
 
@@ -475,6 +618,7 @@ public partial class Program
         string taskId,
         Dictionary<string, double> timeByModel,
         Dictionary<string, double> memByModel,
+        string executedSizes,
         ScoringConfig cfg)
     {
         if (!File.Exists(outputPath)) return;
@@ -513,10 +657,12 @@ public partial class Program
 
             var score = EvaluatedCodeGeneration.ScoringEngine.Compute(inputs, cfg);
 
-            ws.Cell(r, 4).Value = score.EfficiencyScore;
-            ws.Cell(r, 6).Value = score.CompositeScore;
-            ws.Cell(r, 7).Value = timeNs;
-            ws.Cell(r, 8).Value = memBytes;
+            ws.Cell(r, 4).Value  = score.EfficiencyScore;
+            ws.Cell(r, 6).Value  = score.CompositeScore;
+            ws.Cell(r, 7).Value  = timeNs;
+            ws.Cell(r, 8).Value  = memBytes;
+            ws.Cell(r, 28).Value = executedSizes;
+            ws.Cell(r, 29).Value = "ok";
         }
 
         ws.Columns().AdjustToContents();
@@ -536,16 +682,32 @@ public partial class Program
         catch { return 0.0; }
     }
 
-    // GcStats.AllocatedBytes is the total across all workload iterations.
-    // Dividing by total workload operations gives bytes per single operation,
-    // matching how BenchmarkDotNet's own [MemoryDiagnoser] column is computed.
-    static double AllocBytesPerOp(BenchmarkDotNet.Reports.BenchmarkReport report)
+    // -------------------------------------------------------------------
+    //  Allocated bytes per operation, taken from BenchmarkDotNet itself.
+    //
+    //  This used to be recomputed as total allocated bytes divided by the
+    //  sum of Operations over every measurement with IterationMode.Workload,
+    //  which spans the pilot, warmup, actual and result stages, while the
+    //  numerator covers only the workload iterations. The denominator was
+    //  therefore far too large and the reported figure came out roughly two
+    //  orders of magnitude low.
+    //
+    //  GcStats.GetBytesAllocatedPerOperation is the value behind
+    //  [MemoryDiagnoser]'s own Allocated column, so the results file now
+    //  agrees with the profiler's report instead of contradicting it.
+    // -------------------------------------------------------------------
+    static double AllocBytesPerOp(BenchmarkDotNet.Reports.BenchmarkReport report) =>
+        report.GcStats.GetBytesAllocatedPerOperation(report.BenchmarkCase) ?? 0.0;
+
+    // Appends a benchmark failure to a sidecar file next to the results, so
+    // failures survive the run instead of scrolling past on the console.
+    static void RecordBenchmarkFailure(string outputPath, string taskId, string reason)
     {
-        long totalOps = report.AllMeasurements
-            .Where(m => m.IterationMode == BenchmarkDotNet.Engines.IterationMode.Workload)
-            .Sum(m => m.Operations);
-        return totalOps > 0
-            ? (double)report.GcStats.GetTotalAllocatedBytes(false) / totalOps
-            : 0.0;
+        string path = Path.ChangeExtension(outputPath, ".benchmark-failures.tsv");
+        bool isNew = !File.Exists(path);
+        string clean = reason.Replace('\t', ' ').Replace('\r', ' ').Replace('\n', ' ');
+        using var writer = new StreamWriter(path, append: true);
+        if (isNew) writer.WriteLine("timestamp\ttask_id\treason");
+        writer.WriteLine($"{DateTime.UtcNow:o}\t{taskId}\t{clean}");
     }
 }
