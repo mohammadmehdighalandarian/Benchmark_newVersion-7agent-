@@ -1,0 +1,48 @@
+﻿{
+    "exported_at":  "2026-09-08T11:28:07.5416813Z",
+    "projects":  [
+                     {
+                         "project_key":  "benchmark-gpt",
+                         "project_name":  "Benchmark - GPT",
+                         "source_file_pattern":  "Solvers_Task_csharp_*.cs",
+                         "expected_source_files":  80
+                     },
+                     {
+                         "project_key":  "benchmark-gemini",
+                         "project_name":  "Benchmark - Gemini",
+                         "source_file_pattern":  "Solvers_Task_csharp_*.cs",
+                         "expected_source_files":  80
+                     },
+                     {
+                         "project_key":  "benchmark-claude",
+                         "project_name":  "Benchmark - Claude",
+                         "source_file_pattern":  "Solvers_Task_csharp_*.cs",
+                         "expected_source_files":  80
+                     },
+                     {
+                         "project_key":  "benchmark-grok",
+                         "project_name":  "Benchmark - Grok",
+                         "source_file_pattern":  "Solvers_Task_csharp_*.cs",
+                         "expected_source_files":  80
+                     },
+                     {
+                         "project_key":  "benchmark-mistral",
+                         "project_name":  "Benchmark - Mistral",
+                         "source_file_pattern":  "Solvers_Task_csharp_*.cs",
+                         "expected_source_files":  80
+                     },
+                     {
+                         "project_key":  "benchmark-deepseek",
+                         "project_name":  "Benchmark - DeepSeek",
+                         "source_file_pattern":  "Solvers_Task_csharp_*.cs",
+                         "expected_source_files":  80
+                     },
+                     {
+                         "project_key":  "benchmark-llama",
+                         "project_name":  "Benchmark - Llama",
+                         "source_file_pattern":  "Solvers_Task_csharp_*.cs",
+                         "expected_source_files":  80
+                     }
+                 ],
+    "sonar_url":  "http://localhost:9000"
+}

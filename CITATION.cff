@@ -1,0 +1,36 @@
+cff-version: 1.2.0
+message: "If you use this replication package, please cite it as below. Until the journal paper is published, please also cite the workshop paper listed under references."
+title: "Replication package for: Beyond Functional Correctness: An Empirical Study of the Quality of LLM-Generated C# Code"
+type: software
+authors:
+  - family-names: Ghalandarian
+    given-names: "Seyed Mohammad Mahdi"
+    affiliation: "Amirkabir University of Technology"
+  - family-names: Bazargani
+    given-names: Majid
+    affiliation: "Amirkabir University of Technology"
+  - family-names: Taromirad
+    given-names: Masoumeh
+    affiliation: "Amirkabir University of Technology"
+license: MIT
+repository-code: "https://github.com/mohammadmehdighalandarian/Benchmark_newVersion-7agent-"
+keywords:
+  - large language models
+  - code generation
+  - software quality
+  - static analysis
+  - SonarQube
+  - C#
+references:
+  - type: conference-paper
+    title: "Benchmarking the Titans: A Multi-Dimensional Empirical Evaluation of LLM Code Generation Quality in the .NET Ecosystem"
+    authors:
+      - family-names: Ghalandarian
+        given-names: "Seyed Mohammad Mahdi"
+      - family-names: Bazargani
+        given-names: Majid
+      - family-names: Taromirad
+        given-names: Masoumeh
+    collection-title: "Joint Proceedings of the STAF 2026 Workshops, 2nd Workshop on Large Language Models for Generative Software Engineering (LLM4SE 2026)"
+    year: 2026
+    url: "https://arxiv.org/abs/2608.22529"

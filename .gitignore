@@ -1,6 +1,20 @@
-﻿################################################################################
-# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
-################################################################################
+# Build output. The BenchmarkDotNet reports used in the paper are kept in
+# measurements/benchmarkdotnet/ and the results workbook in data/results/.
+bin/
+obj/
+BenchmarkDotNet.Artifacts/
 
-/.vs/test/FileContentIndex/20740618-a6b4-420b-ae3b-7ec470e0c64c.vsidx
-/.vs/test/v17/.suo
+# IDE and user-specific files
+.vs/
+.idea/
+.vscode/
+*.user
+*.suo
+
+# Python
+__pycache__/
+*.pyc
+
+# OS files
+.DS_Store
+Thumbs.db

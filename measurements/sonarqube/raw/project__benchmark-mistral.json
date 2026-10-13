@@ -1,0 +1,18 @@
+﻿{
+    "paging":  {
+                   "pageIndex":  1,
+                   "pageSize":  100,
+                   "total":  1
+               },
+    "components":  [
+                       {
+                           "key":  "benchmark-mistral",
+                           "name":  "Benchmark - Mistral",
+                           "qualifier":  "TRK",
+                           "visibility":  "public",
+                           "lastAnalysisDate":  "2026-09-08T10:10:27+0000",
+                           "managed":  false,
+                           "projectUuid":  "69c74881-17c1-4ece-a258-c8af10ca2e11"
+                       }
+                   ]
+}

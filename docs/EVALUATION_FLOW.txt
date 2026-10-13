@@ -1,0 +1,156 @@
+HOW THE EVALUATION PIPELINE WORKS
+
+The program in pipeline/ takes the C# solutions written by seven models (GPT,
+Gemini, Claude, Grok, Mistral, DeepSeek, Llama), measures each one for
+correctness, structure, runtime and static-analysis issues, and writes the
+results to evaluation_results.xlsx next to the executable
+(pipeline/bin/<Configuration>/net8.0/).
+
+The generated code is compiled into the program itself:
+  Solution/Solvers/     one file per task, one namespace per model
+                        (Benchmarks.<task>.<model>)
+  Solution/Tests/       one TestRunner class per task with a Run_<model> method
+  Solution/Benchmarks/  one BenchmarkDotNet class per task (79 tasks)
+
+
+STEP 1: CORRECTNESS
+
+For each task and model, the program calls the Run_<model> test method by
+reflection. Each assertion is a TestUtils.Check call that records a pass or a
+failure. Correctness is passed / assertions * 100.
+
+All assertions of a test method run inside one try/catch, so an exception
+thrown by a solution stops the remaining assertions. The number of assertions
+of each method is read from the test sources, and every assertion that did not
+run counts as failed. (The original version divided by the assertions that had
+run; four stored scores were too high because of this.)
+
+
+STEP 2: STATIC ANALYSIS
+
+The program compiles each solution in memory with Roslyn, against the
+references of the running process and with the file-level using directives.
+A solution that does not compile is flagged as Excluded instead of being given
+a score of 0. The metrics are then computed whether or not it compiled:
+
+  Cyclomatic complexity  1 + the number of if, while, for, foreach, case and
+                         catch keywords and &&, || and ?? operators
+  Cognitive complexity   Campbell's specification: +1 (plus the nesting level)
+                         for each control-flow structure; else if and else add
+                         1 without a nesting penalty; a run of identical logical
+                         operators adds 1
+  Nesting depth          maximum nesting of if, for, foreach, while and do; an
+                         else if continues its chain and adds no level
+  Naming violations      reported, but not used in any score (it mostly counts
+                         identifiers that the prompt fixes)
+  Professionalism        0 to 3: XML documentation comment, null check (text
+                         search), use of LINQ operators
+
+The SonarAnalyzer for C# also runs in process on the same code fragment. Its
+issue counts are recorded in the SA columns. The remediation minutes and the
+A to E grades of this pass are local formulas, not SonarQube results; the
+paper's SonarQube results come from a separate SonarQube analysis
+(measurements/sonarqube/).
+
+
+STEP 3: RUNTIME
+
+Each task's BenchmarkDotNet class calls the seven solutions on the same inputs,
+at the sizes set in the harness (N = 10 and N = 100). The time of a solution is
+the mean of its per-size medians; the allocation is BenchmarkDotNet's own
+bytes per operation. This phase saves its progress after each task and can be
+resumed. A task whose run fails is written to
+evaluation_results.benchmark-failures.tsv and is retried on the next run.
+
+
+SCORING
+
+Each metric x is normalised as s_x = 1 - min(x, L_x) / L_x, with L = 15 for
+cyclomatic complexity and L = 5 for nesting depth.
+
+  Quality Score    Q = 50 * (s_Cx + s_Nest), without correctness
+  Efficiency       100 * 10^4 / (10^4 + t), t = time in ns
+  Composite Score  the mean of correctness, s_Cx, s_Nest and the efficiency
+                   term; the efficiency term is used only when a time exists
+
+The weights are set in ScoringConfig. Setting W_Style = 1 adds the naming
+term back, as in the earlier version of the pipeline.
+
+
+COLUMNS OF THE WORKBOOK
+
+ 1-2   Task ID, AI Model
+ 3     Correctness (%)
+ 4     Efficiency Score
+ 5     Quality Score (Q)
+ 6     Composite Score
+ 7-8   Time (ns), Memory (Bytes)
+ 9-13  Complexity, Cognitive Cx, Nesting, Naming Violations, Professionalism
+14-15  Excluded, Exclusion Reason
+16-17  Compile Errors, Compile Diagnostics
+18-27  SA Scan Status, SA Total Issues, SA Errors, SA Warnings, SA Info,
+       SA Analyzer Crashes, SA Remediation Effort (min, local),
+       SA Maintainability Grade (local), SA Reliability Grade (local), SA Rules
+28-29  Benchmark Sizes, Benchmark Status
+
+The results file used in the paper (data/results/evaluation_results.txt) was
+written in June 2026 by an earlier version with 23 columns. Its in-process
+analyser columns are named SQ instead of SA, and it has no compile or
+benchmark columns. data/README.md describes it.
+
+
+RUNNING THE PIPELINE
+
+Run the commands from pipeline/ with "dotnet run -c Release -- <command>".
+Running with no command runs the benchmarks only.
+
+  prompts [workbook] [outDir]
+      Reads the task spreadsheet, builds both prompts for every task from the
+      templates in PromptTemplates.cs, and writes one folder per task with
+      solution_prompt.txt, benchmark_prompt.txt and input.json, plus a
+      manifest.tsv with a SHA-256 of each prompt (Phase1_Prompts/).
+
+  verify-prompts [workbook]
+      Rebuilds all 160 prompts from the templates and compares them byte for
+      byte with the prompts stored in the workbook. Recorded result: 160 of
+      160 reproduced exactly.
+
+  audit-assertions [workbook] [testsDir]
+      Compares the assertions in each task's source tests with the
+      instrumented assertions in the generated test file. Result for the
+      shipped tests: 677 in the source, 677 instrumented, 0 lost.
+
+  generate-template [path]
+      Writes a generation configuration to fill in with endpoints and pinned
+      model identifiers. API keys are read from environment variables.
+
+  generate [workbook] [config] [outDir]
+      Queries each model at the configured temperature and stores every raw
+      response with the model version that served it. This command was added
+      after the study; the shipped solutions were generated in June 2026.
+
+  assemble [workbook] --overwrite
+      Rebuilds the .cs corpus from the workbook with SolutionWriter. It
+      rewrites the shipped solver, test and benchmark files, so it needs the
+      --overwrite flag.
+
+  correctness
+      Steps 1 and 2. Recreates the results workbook from scratch.
+
+  benchmark
+      Step 3. Incremental and resumable.
+
+  export-tsv [xlsx] [tsv]
+      Writes the TSV directly from the workbook, with full numeric precision.
+
+  all
+      correctness, then benchmark, then export-tsv.
+
+
+WHERE THE TASK SPREADSHEET IS
+
+The task workbook is not in this repository. The default path in
+DatasetPreparation.DefaultWorkbookPath points to the four-model ancestor of
+the workbook on the first author's machine; the seven-model workbook has not
+been found. The prompts that were sent are in Phase1_Prompts/, and the tests
+in Solution/Tests/.

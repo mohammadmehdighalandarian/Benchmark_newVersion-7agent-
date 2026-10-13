@@ -1,0 +1,18 @@
+﻿{
+    "paging":  {
+                   "pageIndex":  1,
+                   "pageSize":  100,
+                   "total":  1
+               },
+    "components":  [
+                       {
+                           "key":  "benchmark-grok",
+                           "name":  "Benchmark - Grok",
+                           "qualifier":  "TRK",
+                           "visibility":  "public",
+                           "lastAnalysisDate":  "2026-09-08T09:46:54+0000",
+                           "managed":  false,
+                           "projectUuid":  "0ca71573-f570-44f1-9c6f-545266597e92"
+                       }
+                   ]
+}

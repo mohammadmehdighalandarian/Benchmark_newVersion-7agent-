@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Re-measures nesting depth and cognitive complexity of the stored solutions.
+       See README.md for the build and run commands. Set the property RoslynDir to a folder
+       with the Microsoft.CodeAnalysis assemblies to build without access to NuGet. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseAppHost>false</UseAppHost>
+  </PropertyGroup>
+  <!-- Same Roslyn version as the evaluation pipeline (Microsoft.CodeAnalysis 4.14.0). -->
+  <ItemGroup Condition="'$(RoslynDir)' == ''">
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(RoslynDir)' != ''">
+    <Reference Include="Microsoft.CodeAnalysis"><HintPath>$(RoslynDir)/Microsoft.CodeAnalysis.dll</HintPath></Reference>
+    <Reference Include="Microsoft.CodeAnalysis.CSharp"><HintPath>$(RoslynDir)/Microsoft.CodeAnalysis.CSharp.dll</HintPath></Reference>
+    <Reference Include="System.Collections.Immutable"><HintPath>$(RoslynDir)/System.Collections.Immutable.dll</HintPath></Reference>
+    <Reference Include="System.Reflection.Metadata"><HintPath>$(RoslynDir)/System.Reflection.Metadata.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>

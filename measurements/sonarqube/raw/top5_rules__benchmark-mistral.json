@@ -1,0 +1,45 @@
+{
+    "project":  "benchmark-mistral",
+    "top_5_rules":  [
+                        {
+                            "project":  "benchmark-mistral",
+                            "rule_key":  "csharpsquid:S1118",
+                            "title":  "Utility classes should not have public constructors",
+                            "issue_count":  80,
+                            "severity":  "MAJOR",
+                            "type":  "CODE_SMELL"
+                        },
+                        {
+                            "project":  "benchmark-mistral",
+                            "rule_key":  "external_roslyn:CA1861",
+                            "title":  "Avoid constant arrays as arguments",
+                            "issue_count":  5,
+                            "severity":  "INFO",
+                            "type":  "CODE_SMELL"
+                        },
+                        {
+                            "project":  "benchmark-mistral",
+                            "rule_key":  "external_roslyn:CS8603",
+                            "title":  "Possible null reference return.",
+                            "issue_count":  4,
+                            "severity":  "MAJOR",
+                            "type":  "CODE_SMELL"
+                        },
+                        {
+                            "project":  "benchmark-mistral",
+                            "rule_key":  "csharpsquid:S1244",
+                            "title":  "Floating point numbers should not be tested for equality",
+                            "issue_count":  4,
+                            "severity":  "MAJOR",
+                            "type":  "BUG"
+                        },
+                        {
+                            "project":  "benchmark-mistral",
+                            "rule_key":  "csharpsquid:S6608",
+                            "title":  "Prefer indexing instead of \"Enumerable\" methods on types implementing \"IList\"",
+                            "issue_count":  2,
+                            "severity":  "MINOR",
+                            "type":  "CODE_SMELL"
+                        }
+                    ]
+}

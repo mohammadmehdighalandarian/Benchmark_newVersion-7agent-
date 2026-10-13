@@ -1,0 +1,244 @@
+
+========================================================================
+DATASET
+========================================================================
+solutions 560 tasks 80 models 7
+framework score formula reproduces stored score on originally included rows: max abs diff 0.0 n = 456
+rows originally flagged did-not-compile: 104
+re-measurement: cyclomatic reproduced for all rows; nesting changed for 32 solutions on 12 tasks; cognitive changed for 151 solutions
+  nesting change distribution (stored - corrected): {0: 528, 1: 24, 2: 2, 11: 5, 12: 1}
+  csharp_34 stored nesting [np.int64(1), np.int64(13), np.int64(14)] corrected [np.int64(1), np.int64(2)]  stored cognitive [np.int64(12), np.int64(91), np.int64(105)] corrected [np.int64(12), np.int64(15)]
+  solutions with cx > 15: 1  nest > 5 stored: 6  corrected: 0  corrected nest == 5: 1  max corrected nest 5
+tests stopped early by an exception: 9  scores changed by counting unexecuted assertions: 4
+          task    model  cor_pipeline        cor  executed  n_assertions
+52   csharp_15     Grok     66.666667  40.000000         3             5
+116  csharp_23  Mistral      0.000000   0.000000         0             5
+223  csharp_37    Llama      0.000000   0.000000         0             6
+305  csharp_48  Mistral      0.000000   0.000000         0             8
+315   csharp_5      GPT      0.000000   0.000000         0             5
+319   csharp_5  Mistral    100.000000  20.000000         1             5
+377  csharp_57    Llama      0.000000   0.000000         0            10
+433  csharp_64    Llama    100.000000  50.000000         2             4
+480  csharp_70  Mistral    100.000000  57.142857         4             7
+r(pipeline correctness, Q) = -0.0282
+pipeline means: {'Claude': 98.21, 'DeepSeek': 95.61, 'GPT': 93.47, 'Gemini': 98.44, 'Grok': 97.85, 'Llama': 92.92, 'Mistral': 87.96}
+
+========================================================================
+RQ1 CORRECTNESS
+========================================================================
+Gemini    mean  98.44  CI [ 95.62,100.00]  fully correct 78/80  zero 1
+Claude    mean  98.21  CI [ 95.79, 99.79]  fully correct 76/80  zero 0
+Grok      mean  97.52  CI [ 94.50, 99.69]  fully correct 76/80  zero 0
+DeepSeek  mean  95.61  CI [ 91.43, 98.84]  fully correct 72/80  zero 2
+GPT       mean  93.47  CI [ 88.44, 97.54]  fully correct 70/80  zero 3
+Llama     mean  92.29  CI [ 86.79, 96.96]  fully correct 69/80  zero 4
+Mistral   mean  86.42  CI [ 79.95, 92.12]  fully correct 60/80  zero 4
+spread 12.01  overall mean 94.57
+Friedman chi2=45.64 p=3.49e-08
+  Gemini   vs Claude   p_holm=1.000 delta=+0.024 (negligible)
+  Gemini   vs Grok     p_holm=1.000 delta=+0.025 (negligible)
+  Gemini   vs DeepSeek p_holm=0.332 delta=+0.074 (negligible)
+  Gemini   vs GPT      p_holm=0.173 delta=+0.100 (negligible)
+  Gemini   vs Llama    p_holm=0.088 delta=+0.112 (negligible)
+  Gemini   vs Mistral  p_holm=0.005 delta=+0.224 (small)
+  Claude   vs Mistral  p_holm=0.006 delta=+0.205 (small)
+  Grok     vs Mistral  p_holm=0.018 delta=+0.201 (small)
+tasks whose seven outcomes are all 0 or 100: 59
+tasks solved fully by all seven: 52
+tasks failed (score<100) by all seven: ['csharp_57', 'csharp_64']
+task means lowest 5: {'csharp_57': 8.6, 'csharp_79': 57.1, 'csharp_67': 64.3, 'csharp_64': 71.4, 'csharp_5': 74.3}
+
+========================================================================
+RQ2 STRUCTURAL QUALITY
+========================================================================
+              Q    cx   cog  nest  nam_any  prof
+model                                           
+Gemini    69.17  4.66  4.78  1.58        2  1.32
+Claude    79.54  2.91  2.70  1.08        2  0.38
+Grok      73.25  3.94  3.85  1.36        2  0.24
+DeepSeek  70.04  4.45  4.51  1.51        2  0.41
+GPT       72.79  4.04  4.18  1.38        3  0.31
+Llama     77.21  3.28  3.35  1.19        2  0.38
+Mistral   77.92  3.32  3.31  1.10        2  0.38
+quality spread 10.38
+Friedman on Q: chi2=109.60 p=2.47e-21
+significant Q pairs (Holm): [('Gemini', 'Claude', np.float64(0.0), np.float64(-0.333)), ('Gemini', 'GPT', np.float64(0.0046), np.float64(-0.103)), ('Gemini', 'Llama', np.float64(0.0002), np.float64(-0.248)), ('Gemini', 'Mistral', np.float64(0.0), np.float64(-0.274)), ('Claude', 'Grok', np.float64(0.0018), np.float64(0.223)), ('Claude', 'DeepSeek', np.float64(0.0), np.float64(0.335)), ('Claude', 'GPT', np.float64(0.0005), np.float64(0.227)), ('DeepSeek', 'Llama', np.float64(0.0001), np.float64(-0.24)), ('DeepSeek', 'Mistral', np.float64(0.0), np.float64(-0.277)), ('GPT', 'Mistral', np.float64(0.0219), np.float64(-0.17))]
+decomp cx  : task 69.7%  model 4.4%  resid 26.0%  (tasks 80)
+decomp nest: task 65.4%  model 3.3%  resid 31.3%  (tasks 80)
+decomp cog : task 70.5%  model 3.1%  resid 26.4%  (tasks 80)
+r(cx,nest) = 0.691
+r(cog,nest) = 0.816
+r(cog,cx) = 0.915
+solutions with any naming violation: 15  total violations: 15
+naming violations by task (top): {'csharp_36': 7, 'csharp_39': 7, 'csharp_57': 1}
+professionalism distribution: {0: 334, 1: 185, 2: 35, 3: 6}
+professionalism signals reproduced: True
+solutions per model with a doc comment / null check / LINQ operator:
+          doc  nullcheck  linq
+model                         
+Gemini     68         21    17
+Claude      0          1    29
+Grok        0          5    14
+DeepSeek    0         14    19
+GPT         0          9    16
+Llama       0          1    29
+Mistral     0          2    28
+Friedman cx            chi2=121.53 p=7.8e-24 tasks=80  means {'Gemini': 4.66, 'Claude': 2.91, 'Grok': 3.94, 'DeepSeek': 4.45, 'GPT': 4.04, 'Llama': 3.28, 'Mistral': 3.32}
+Friedman nest          chi2=55.22 p=4.2e-10 tasks=80  means {'Gemini': 1.58, 'Claude': 1.08, 'Grok': 1.36, 'DeepSeek': 1.51, 'GPT': 1.38, 'Llama': 1.19, 'Mistral': 1.1}
+Friedman cog           chi2=93.98 p=4.5e-18 tasks=80  means {'Gemini': 4.78, 'Claude': 2.7, 'Grok': 3.85, 'DeepSeek': 4.51, 'GPT': 4.18, 'Llama': 3.35, 'Mistral': 3.31}
+Friedman sq_complexity chi2=105.43 p=1.8e-20 tasks=80  means {'Gemini': 4.86, 'Claude': 3.08, 'Grok': 4.11, 'DeepSeek': 4.69, 'GPT': 4.29, 'Llama': 3.48, 'Mistral': 3.6}
+Friedman sq_cognitive  chi2=91.15 p=1.8e-17 tasks=80  means {'Gemini': 4.8, 'Claude': 2.94, 'Grok': 3.89, 'DeepSeek': 4.53, 'GPT': 4.21, 'Llama': 3.36, 'Mistral': 3.36}
+  weighting ranks Gemini    rank under Q 7  same rank 100.0%  first   0.0%  last 100.0%  range 7-7
+  weighting ranks Claude    rank under Q 1  same rank 100.0%  first 100.0%  last   0.0%  range 1-1
+  weighting ranks Grok      rank under Q 4  same rank 100.0%  first   0.0%  last   0.0%  range 4-4
+  weighting ranks DeepSeek  rank under Q 6  same rank 100.0%  first   0.0%  last   0.0%  range 6-6
+  weighting ranks GPT       rank under Q 5  same rank 100.0%  first   0.0%  last   0.0%  range 5-5
+  weighting ranks Llama     rank under Q 3  same rank  83.8%  first   0.0%  last   0.0%  range 2-3
+  weighting ranks Mistral   rank under Q 2  same rank  83.8%  first   0.0%  last   0.0%  range 2-3
+Kendall tau with the ranking by Q: median 1.00 min 0.90
+
+========================================================================
+RQ3 SONARQUBE (platform pass, 560 solutions)
+========================================================================
+issues total 752  by type {'CODE_SMELL': 721, 'BUG': 17, 'VULNERABILITY': 14}
+by severity {'MAJOR': 650, 'INFO': 54, 'MINOR': 39, 'CRITICAL': 9}
+S1118 issues 560  solutions with S1118 560
+issues beyond S1118 192  solutions with any 116  distinct rules 29
+          issues  extra  sol_with_extra  bugs  vulns  effort  effort_per_sol
+model                                                                       
+Gemini       112     32              20     2      2   850.0           10.62
+Claude       112     32              16     3      5   836.0           10.45
+Grok         105     25              15     1      1   845.0           10.56
+DeepSeek     108     28              18     2      2   835.0           10.44
+GPT          102     22              14     1      2   855.0           10.69
+Llama        101     21              14     3      1   831.0           10.39
+Mistral      112     32              19     5      1   860.0           10.75
+extra issues per solution: Friedman over tasks
+  chi2=5.60 p=0.470
+top rules beyond S1118 per model:
+  Gemini    {'CS8603': 8, 'S3267': 5, 'CA1861': 3}
+  Claude    {'SYSLIB1045': 4, 'S6444': 4, 'CS8603': 3}
+  Grok      {'S3267': 5, 'CS8603': 4, 'CA1861': 4}
+  DeepSeek  {'CS8603': 5, 'S3267': 3, 'CS8600': 3}
+  GPT       {'S1066': 3, 'S3267': 2, 'CA1861': 2}
+  Llama     {'CS8603': 4, 'CS8600': 3, 'S1244': 2}
+  Mistral   {'CA1861': 5, 'CS8603': 4, 'S1244': 4}
+rule frequency overall (beyond S1118): {'CS8603': 29, 'S3267': 18, 'CA1861': 17, 'S1244': 15, 'CS8604': 12, 'CS8600': 10, 'S1066': 9, 'CA1862': 8}
+rule profile permutation test: 12 rules with >= 7 issues chi2=68.6 p=0.0009; all 29 rules chi2=169.8 p=0.0463
+effort distribution (min): {10.0: 515, 15.0: 27, 16.0: 2, 20.0: 15, 25.0: 1}
+maintainability rating values: {1.0: 560}
+cyclomatic ours vs SQ: r=0.986 exact=82.1% within1=96.6% means 4.01 vs 3.80
+cognitive ours vs SQ: rho=0.996 r=0.996 r_excl34=0.996 exact=96.6% within1=98.4%
+cognitive as originally stored vs SQ: r=0.633
+csharp_34 ours cog [np.int64(12), np.int64(15)] SQ [np.float64(12.0), np.float64(15.0)]
+decomp sq_complexity: task 69.4% model 4.1% resid 26.5%
+decomp sq_cognitive: task 72.0% model 2.6% resid 25.4%
+SQALE effort vs quality: r=-0.276 p=3e-11
+SQALE effort vs cyclomatic: r=0.281 p=1.2e-11
+SQALE effort vs cognitive: r=0.285 p=6.1e-12
+SQALE effort vs nesting: r=0.249 p=2.2e-09
+SQALE effort vs correctness: r=0.012 p=0.78
+SQ issues vs correctness: r=-0.016 p=0.70
+SQ extra issues vs correctness: r=-0.016 p=0.70
+
+========================================================================
+RQ3b IN-PROCESS ANALYZER PASS (run only on the 456 rows not flagged)
+========================================================================
+n 456  baseline triple present on 100.0%
+solutions with any issue beyond the triple: 53  max excess 4
+excess rule counts: [('S3267', 17), ('S1244', 12), ('S1066', 8), ('S1643', 6), ('S1871', 4), ('S3358', 4)]
+
+========================================================================
+RQ4 RUNTIME (BenchmarkDotNet reports)
+========================================================================
+solutions with runtime 512  tasks 74  zero-time 2
+mean used instead of median (BDN omitted median): 28
+solutions without runtime by task: {'csharp_11': 7, 'csharp_12': 7, 'csharp_23': 1, 'csharp_32': 7, 'csharp_33': 7, 'csharp_34': 7, 'csharp_35': 7, 'csharp_37': 1, 'csharp_48': 1, 'csharp_5': 1, 'csharp_57': 1, 'csharp_64': 1}
+Gemini    n=74 median time    374.5 ns   median alloc     80 B   zero-alloc 29
+Claude    n=74 median time    843.1 ns   median alloc    328 B   zero-alloc 21
+Grok      n=74 median time    320.0 ns   median alloc     76 B   zero-alloc 30
+DeepSeek  n=74 median time    498.6 ns   median alloc    272 B   zero-alloc 25
+GPT       n=74 median time    364.5 ns   median alloc    198 B   zero-alloc 27
+Llama     n=71 median time    739.1 ns   median alloc    396 B   zero-alloc 17
+Mistral   n=71 median time    745.8 ns   median alloc    440 B   zero-alloc 19
+tasks with all seven (t>0): 67  Friedman log-time chi2=36.93 p=1.81e-06
+significant time pairs (Holm): [('Gemini', 'Claude', np.float64(0.0072), np.float64(-0.141)), ('Gemini', 'Llama', np.float64(0.0073), np.float64(-0.15)), ('Gemini', 'Mistral', np.float64(0.0383), np.float64(-0.106)), ('Claude', 'Grok', np.float64(0.0006), np.float64(0.19)), ('Claude', 'DeepSeek', np.float64(0.0073), np.float64(0.08)), ('Claude', 'GPT', np.float64(0.0269), np.float64(0.132)), ('Grok', 'Llama', np.float64(0.0001), np.float64(-0.2)), ('Grok', 'Mistral', np.float64(0.0225), np.float64(-0.146)), ('DeepSeek', 'Llama', np.float64(0.0073), np.float64(-0.097)), ('GPT', 'Llama', np.float64(0.0058), np.float64(-0.138))]
+solutions with time below 1 ns: 22 on tasks ['csharp_16', 'csharp_19', 'csharp_24', 'csharp_26', 'csharp_45']
+fastest solution per task (tasks whose fastest time >= 1 ns): {'Gemini': 15, 'Claude': 3, 'Grok': 15, 'DeepSeek': 12, 'GPT': 12, 'Llama': 5, 'Mistral': 7}  tasks 69
+without the sub-ns tasks: 63 tasks, Friedman chi2=33.94 p=6.9e-06, 11 Holm pairs, max |delta|=0.215
+rank by median time (1=fastest): {'Claude': 7, 'DeepSeek': 4, 'GPT': 2, 'Gemini': 3, 'Grok': 1, 'Llama': 5, 'Mistral': 6}
+Friedman allocation chi2=47.79 p=1.3e-08 tasks 68
+growth: solutions 502 tasks 74
+  Gemini    n=73 median k=0.863 flat(<0.3)=14 superlinear(>1.4)=2
+  Claude    n=74 median k=0.874 flat(<0.3)=11 superlinear(>1.4)=2
+  Grok      n=72 median k=0.872 flat(<0.3)=12 superlinear(>1.4)=2
+  DeepSeek  n=73 median k=0.874 flat(<0.3)=10 superlinear(>1.4)=2
+  GPT       n=73 median k=0.856 flat(<0.3)=11 superlinear(>1.4)=1
+  Llama     n=69 median k=0.901 flat(<0.3)=10 superlinear(>1.4)=0
+  Mistral   n=68 median k=0.814 flat(<0.3)=11 superlinear(>1.4)=4
+Friedman k over 65 tasks chi2=2.80 p=0.834
+decomp k: task 75.5% model 0.3% resid 24.1% (tasks 65)
+superlinear total 13  by task {'csharp_37': 6, 'csharp_47': 1, 'csharp_52': 1, 'csharp_64': 4, 'csharp_69': 1}
+growth with both medians >= 1 ns: 489 solutions, Friedman over 63 tasks chi2=2.97 p=0.81, task share 73.8%
+median k overall 0.863  range of model medians 0.814 0.901
+csharp_43:
+         model           t10          t100       alloc10      alloc100    cor  cx          Q
+266       GPT  3.763000e+01  2.514600e+02  9.600000e+01  4.560000e+02  100.0   2  83.333333
+267    Gemini  9.223000e+01  3.899100e+02  2.160000e+02  1.184000e+03  100.0   2  83.333333
+268    Claude  8.963000e+01  3.724600e+02  2.160000e+02  1.184000e+03  100.0   2  83.333333
+269      Grok  9.349000e+01  3.949300e+02  2.160000e+02  1.184000e+03  100.0   2  83.333333
+270   Mistral  1.092900e+02  3.854700e+02  2.160000e+02  1.184000e+03  100.0   2  83.333333
+271  DeepSeek  1.128000e+02  3.702900e+02  2.160000e+02  1.184000e+03  100.0   2  83.333333
+272     Llama  2.206518e+10  2.023809e+10  8.589939e+09  8.589939e+09    0.0   3  70.000000
+
+========================================================================
+RQ5 CORRECTNESS vs STRUCTURAL QUALITY
+========================================================================
+r=-0.0374 CI[-0.112,0.037] p=0.377; rho=-0.0061 p=0.885
+  Gemini    r=+0.038 p=0.738
+  Claude    r=+0.146 p=0.196
+  Grok      r=+0.000 p=1.000
+  DeepSeek  r=+0.011 p=0.924
+  GPT       r=-0.059 p=0.603
+  Llama     r=-0.033 p=0.773
+  Mistral   r=-0.094 p=0.407
+Dirichlet 3 comps (cx, nest, prof): range [-0.045,0.057] max|r|=0.057
+Dirichlet 4 comps (+cog): range [-0.045,0.056] max|r|=0.056
+  correctness vs cx            r=+0.046 p=0.28  rho=-0.003 p=0.94
+  correctness vs nest          r=+0.024 p=0.57  rho=+0.009 p=0.83
+  correctness vs cog           r=+0.042 p=0.32  rho=+0.013 p=0.76
+  correctness vs nam           r=-0.020 p=0.63  rho=-0.015 p=0.72
+  correctness vs sq_complexity r=+0.050 p=0.24  rho=+0.007 p=0.86
+  correctness vs sq_cognitive  r=+0.038 p=0.37  rho=+0.012 p=0.78
+  correctness vs sq_debt       r=+0.012 p=0.78  rho=-0.018 p=0.67
+  correctness vs sq_issues     r=-0.016 p=0.70  rho=+0.013 p=0.76
+  correctness vs sq_ncloc      r=-0.073 p=0.08  rho=-0.088 p=0.04
+rank correlation of orderings rho=-0.357 p=0.432
+              c      q  rc  rq
+model                         
+Gemini    98.44  69.17   1   7
+Claude    98.21  79.54   2   1
+Grok      97.52  73.25   3   4
+DeepSeek  95.61  70.04   4   6
+GPT       93.47  72.79   5   5
+Llama     92.29  77.21   6   3
+Mistral   86.42  77.92   7   2
+within-task cx vs correctness: r=+0.244 p=0.00172 n=189 tasks=27 df=161
+within-task nest vs correctness: r=+0.195 p=0.0366 n=133 tasks=19 df=113
+within-task Q vs correctness: r=-0.222 p=0.00436 n=189 tasks=27 df=161
+between tasks (task means): r(correctness, Q)=+0.025 p=0.83
+
+========================================================================
+AGGREGATION: correctness-free Q vs composite containing correctness
+========================================================================
+          n_pass  Q_pass  n_fail  Q_fail    dQ  comp_pass  comp_fail  dComp   p_Q
+model                                                                            
+Gemini        78   69.15       2   70.00 -0.85      81.31      68.09  13.23  0.99
+Claude        76   80.00       4   70.83  9.17      85.55      71.34  14.21  0.22
+Grok          76   73.25       4   73.33 -0.09      83.60      70.29  13.31  0.96
+DeepSeek      72   70.23       8   68.33  1.90      81.52      69.80  11.72  0.67
+GPT           70   72.29      10   76.33 -4.05      82.89      71.92  10.97  0.52
+Llama         69   77.44      11   75.76  1.68      85.09      65.53  19.56  0.66
+Mistral       60   77.61      20   78.83 -1.22      84.95      69.98  14.97  1.00
+pooled: Q pass 74.17 fail 75.20 (MWU p=0.942); comp pass 83.51 fail 69.50 (p=1.9e-15)
+r(correctness, composite) = 0.433
