@@ -1,0 +1,19 @@
+HumanEval problems: 164; used in this study: 80
+
+lines in reference solution                   used mean   6.78 median   6.0 | other mean   5.83 median   5.0 | Mann-Whitney p=0.151
+cyclomatic complexity of reference solution   used mean   4.06 median   3.5 | other mean   3.55 median   3.0 | Mann-Whitney p=0.201
+nesting depth of reference solution           used mean   1.51 median   1.0 | other mean   1.25 median   1.0 | Mann-Whitney p=0.409
+words in description                          used mean  59.86 median  56.0 | other mean  61.29 median  49.5 | Mann-Whitney p=0.573
+test assertions                               used mean   7.24 median   7.0 | other mean   6.58 median   7.0 | Mann-Whitney p=0.188
+parameters                                    used mean   1.35 median   1.0 | other mean   1.25 median   1.0 | Mann-Whitney p=0.211
+from HumanEval/0-40                           used 13/80 | other 28/84 | Fisher p=0.012
+prompt defines helper functions               used 0/80 | other 4/84 | Fisher p=0.121
+tests compare floats with tolerance           used 0/80 | other 3/84 | Fisher p=0.246
+
+by position in the dataset (all 164):
+                   loc    cc  words
+part                               
+HumanEval/0-40    5.34  3.10  37.63
+HumanEval/41-163  6.61  4.03  68.24
+
+tasks whose C# assertion count equals the HumanEval assert count: 79/80

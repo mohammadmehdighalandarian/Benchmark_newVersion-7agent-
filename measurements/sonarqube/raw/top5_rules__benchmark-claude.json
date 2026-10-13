@@ -1,0 +1,45 @@
+{
+    "project":  "benchmark-claude",
+    "top_5_rules":  [
+                        {
+                            "project":  "benchmark-claude",
+                            "rule_key":  "csharpsquid:S1118",
+                            "title":  "Utility classes should not have public constructors",
+                            "issue_count":  80,
+                            "severity":  "MAJOR",
+                            "type":  "CODE_SMELL"
+                        },
+                        {
+                            "project":  "benchmark-claude",
+                            "rule_key":  "csharpsquid:S6444",
+                            "title":  "Regular expressions should be executed with a timeout",
+                            "issue_count":  4,
+                            "severity":  "MINOR",
+                            "type":  "VULNERABILITY"
+                        },
+                        {
+                            "project":  "benchmark-claude",
+                            "rule_key":  "external_roslyn:SYSLIB1045",
+                            "title":  "Convert to \u0027GeneratedRegexAttribute\u0027.",
+                            "issue_count":  4,
+                            "severity":  "INFO",
+                            "type":  "CODE_SMELL"
+                        },
+                        {
+                            "project":  "benchmark-claude",
+                            "rule_key":  "csharpsquid:S1244",
+                            "title":  "Floating point numbers should not be tested for equality",
+                            "issue_count":  3,
+                            "severity":  "MAJOR",
+                            "type":  "BUG"
+                        },
+                        {
+                            "project":  "benchmark-claude",
+                            "rule_key":  "external_roslyn:CS8603",
+                            "title":  "Possible null reference return.",
+                            "issue_count":  3,
+                            "severity":  "MAJOR",
+                            "type":  "CODE_SMELL"
+                        }
+                    ]
+}

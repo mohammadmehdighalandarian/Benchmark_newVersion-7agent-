@@ -1,0 +1,18 @@
+﻿{
+    "paging":  {
+                   "pageIndex":  1,
+                   "pageSize":  100,
+                   "total":  1
+               },
+    "components":  [
+                       {
+                           "key":  "benchmark-gpt",
+                           "name":  "Benchmark - GPT",
+                           "qualifier":  "TRK",
+                           "visibility":  "public",
+                           "lastAnalysisDate":  "2026-09-08T09:33:49+0000",
+                           "managed":  false,
+                           "projectUuid":  "1c6b233a-687a-4267-92f0-896229e7f124"
+                       }
+                   ]
+}

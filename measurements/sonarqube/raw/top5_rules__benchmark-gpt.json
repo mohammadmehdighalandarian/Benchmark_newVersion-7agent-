@@ -1,0 +1,45 @@
+{
+    "project":  "benchmark-gpt",
+    "top_5_rules":  [
+                        {
+                            "project":  "benchmark-gpt",
+                            "rule_key":  "csharpsquid:S1118",
+                            "title":  "Utility classes should not have public constructors",
+                            "issue_count":  80,
+                            "severity":  "MAJOR",
+                            "type":  "CODE_SMELL"
+                        },
+                        {
+                            "project":  "benchmark-gpt",
+                            "rule_key":  "csharpsquid:S1066",
+                            "title":  "Mergeable \"if\" statements should be combined",
+                            "issue_count":  3,
+                            "severity":  "MAJOR",
+                            "type":  "CODE_SMELL"
+                        },
+                        {
+                            "project":  "benchmark-gpt",
+                            "rule_key":  "external_roslyn:CA1861",
+                            "title":  "Avoid constant arrays as arguments",
+                            "issue_count":  2,
+                            "severity":  "INFO",
+                            "type":  "CODE_SMELL"
+                        },
+                        {
+                            "project":  "benchmark-gpt",
+                            "rule_key":  "external_roslyn:CS8604",
+                            "title":  "Possible null reference argument.",
+                            "issue_count":  2,
+                            "severity":  "MAJOR",
+                            "type":  "CODE_SMELL"
+                        },
+                        {
+                            "project":  "benchmark-gpt",
+                            "rule_key":  "external_roslyn:CA1862",
+                            "title":  "Use the \u0027StringComparison\u0027 method overloads to perform case-insensitive string comparisons",
+                            "issue_count":  2,
+                            "severity":  "INFO",
+                            "type":  "CODE_SMELL"
+                        }
+                    ]
+}

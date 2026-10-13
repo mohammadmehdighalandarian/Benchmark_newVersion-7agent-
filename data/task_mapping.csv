@@ -1,0 +1,81 @@
+task,humaneval,entry_point,returns,parameters
+csharp_0,HumanEval/3,BelowZero,bool,List<int> operations
+csharp_1,HumanEval/8,SumProduct,List<int>,List<int> numbers
+csharp_2,HumanEval/11,StringXor,string,"string a, string b"
+csharp_3,HumanEval/12,Longest,object,List<string> strings
+csharp_4,HumanEval/13,GreatestCommonDivisor,int,"int a, int b"
+csharp_5,HumanEval/19,SortNumbers,string,string numbers
+csharp_6,HumanEval/21,RescaleToUnit,List<double>,List<double> numbers
+csharp_7,HumanEval/27,FlipCase,string,string string0
+csharp_8,HumanEval/30,GetPositive,List<int>,List<int> l
+csharp_9,HumanEval/31,IsPrime,bool,int n
+csharp_10,HumanEval/34,Unique,List<int>,List<int> l
+csharp_11,HumanEval/39,PrimeFib,int,int n
+csharp_12,HumanEval/40,TriplesSumToZero,bool,List<int> l
+csharp_13,HumanEval/43,PairsSumToZero,bool,List<int> l
+csharp_14,HumanEval/46,Fib4,int,int n
+csharp_15,HumanEval/47,Median,object,List<int> l
+csharp_16,HumanEval/48,IsPalindrome,bool,string text
+csharp_17,HumanEval/51,RemoveVowels,string,string text
+csharp_18,HumanEval/52,BelowThreshold,bool,"List<int> l, int t"
+csharp_19,HumanEval/53,Add,int,"int x, int y"
+csharp_20,HumanEval/54,SameChars,bool,"string s0, string s1"
+csharp_21,HumanEval/55,Fib,int,int n
+csharp_22,HumanEval/58,Common,List<int>,"List<int> l1, List<int> l2"
+csharp_23,HumanEval/59,LargestPrimeFactor,int,int n
+csharp_24,HumanEval/60,SumToN,int,int n
+csharp_25,HumanEval/62,Derivative,List<int>,List<int> xs
+csharp_26,HumanEval/63,Fibfib,int,int n
+csharp_27,HumanEval/64,VowelsCount,int,string s
+csharp_28,HumanEval/69,Search,int,List<int> lst
+csharp_29,HumanEval/71,TriangleArea,object,"int a, int b, int c"
+csharp_30,HumanEval/72,WillItFly,bool,"List<int> q, int w"
+csharp_31,HumanEval/75,IsMultiplyPrime,bool,int a
+csharp_32,HumanEval/79,DecimalToBinary,string,int decimal
+csharp_33,HumanEval/80,IsHappy,bool,string s
+csharp_34,HumanEval/81,NumericalLetterGrade,List<string>,List<object> grades
+csharp_35,HumanEval/82,PrimeLength,bool,string string0
+csharp_36,HumanEval/84,Solve,string,int N
+csharp_37,HumanEval/87,GetRow,List<List<int>>,"List<List<int>> lst, int x"
+csharp_38,HumanEval/90,NextSmallest,object,List<int> lst
+csharp_39,HumanEval/91,IsBored,int,string S
+csharp_40,HumanEval/94,Skjkasdkd,int,List<int> lst
+csharp_41,HumanEval/95,CheckDictCase,bool,"Dictionary<object, string> dict"
+csharp_42,HumanEval/99,ClosestInteger,int,string value
+csharp_43,HumanEval/100,MakeAPile,List<int>,int n
+csharp_44,HumanEval/101,WordsString,List<string>,string s
+csharp_45,HumanEval/102,ChooseNum,int,"int x, int y"
+csharp_46,HumanEval/103,RoundedAvg,object,"int n, int m"
+csharp_47,HumanEval/106,F,List<int>,int n
+csharp_48,HumanEval/107,EvenOddPalindrome,List<int>,int n
+csharp_49,HumanEval/109,MoveOneBall,bool,List<int> arr
+csharp_50,HumanEval/110,Exchange,string,"List<int> lst1, List<int> lst2"
+csharp_51,HumanEval/112,ReverseDelete,List<object>,"string s, string c"
+csharp_52,HumanEval/115,MaxFill,int,"List<List<int>> grid, int capacity"
+csharp_53,HumanEval/117,SelectWords,List<string>,"string s, int n"
+csharp_54,HumanEval/120,Maximum,List<int>,"List<int> arr, int k"
+csharp_55,HumanEval/122,AddElements,int,"List<int> arr, int k"
+csharp_56,HumanEval/127,Intersection,string,"List<int> interval1, List<int> interval2"
+csharp_57,HumanEval/130,Tri,List<object>,int n
+csharp_58,HumanEval/131,Digits,int,int n
+csharp_59,HumanEval/132,IsNested,bool,string string0
+csharp_60,HumanEval/133,SumSquares,int,List<object> lst
+csharp_61,HumanEval/134,CheckIfLastCharIsALetter,bool,string txt
+csharp_62,HumanEval/135,CanArrange,int,List<int> arr
+csharp_63,HumanEval/136,LargestSmallestIntegers,List<object>,List<int> lst
+csharp_64,HumanEval/139,SpecialFactorial,int,int n
+csharp_65,HumanEval/143,WordsInSentence,string,string sentence
+csharp_66,HumanEval/144,Simplify,bool,"string x, string n"
+csharp_67,HumanEval/145,OrderByPoints,List<int>,List<int> nums
+csharp_68,HumanEval/146,SpecialFilter,int,List<int> nums
+csharp_69,HumanEval/147,GetMaxTriples,int,int n
+csharp_70,HumanEval/148,Bf,List<string>,"string planet1, string planet2"
+csharp_71,HumanEval/150,XOrY,int,"int n, int x, int y"
+csharp_72,HumanEval/151,DoubleTheDifference,int,List<object> lst
+csharp_73,HumanEval/153,StrongestExtension,string,"string class_name, List<string> extensions"
+csharp_74,HumanEval/154,CycpatternCheck,bool,"string a, string b"
+csharp_75,HumanEval/156,IntToMiniRoman,string,int number
+csharp_76,HumanEval/157,RightAngleTriangle,bool,"int a, int b, int c"
+csharp_77,HumanEval/161,Solve,string,string s
+csharp_78,HumanEval/162,StringToMd5,object,string text
+csharp_79,HumanEval/163,GenerateIntegers,List<int>,"int a, int b"

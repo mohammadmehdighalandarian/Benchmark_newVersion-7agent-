@@ -1,0 +1,45 @@
+{
+    "project":  "benchmark-llama",
+    "top_5_rules":  [
+                        {
+                            "project":  "benchmark-llama",
+                            "rule_key":  "csharpsquid:S1118",
+                            "title":  "Utility classes should not have public constructors",
+                            "issue_count":  80,
+                            "severity":  "MAJOR",
+                            "type":  "CODE_SMELL"
+                        },
+                        {
+                            "project":  "benchmark-llama",
+                            "rule_key":  "external_roslyn:CS8603",
+                            "title":  "Possible null reference return.",
+                            "issue_count":  4,
+                            "severity":  "MAJOR",
+                            "type":  "CODE_SMELL"
+                        },
+                        {
+                            "project":  "benchmark-llama",
+                            "rule_key":  "external_roslyn:CS8600",
+                            "title":  "Converting null literal or possible null value to non-nullable type.",
+                            "issue_count":  3,
+                            "severity":  "MAJOR",
+                            "type":  "CODE_SMELL"
+                        },
+                        {
+                            "project":  "benchmark-llama",
+                            "rule_key":  "external_roslyn:CA1860",
+                            "title":  "Avoid using \u0027Enumerable.Any()\u0027 extension method",
+                            "issue_count":  2,
+                            "severity":  "INFO",
+                            "type":  "CODE_SMELL"
+                        },
+                        {
+                            "project":  "benchmark-llama",
+                            "rule_key":  "external_roslyn:CS8604",
+                            "title":  "Possible null reference argument.",
+                            "issue_count":  2,
+                            "severity":  "MAJOR",
+                            "type":  "CODE_SMELL"
+                        }
+                    ]
+}

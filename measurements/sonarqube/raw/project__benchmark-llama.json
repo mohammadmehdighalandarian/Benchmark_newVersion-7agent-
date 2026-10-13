@@ -1,0 +1,18 @@
+﻿{
+    "paging":  {
+                   "pageIndex":  1,
+                   "pageSize":  100,
+                   "total":  1
+               },
+    "components":  [
+                       {
+                           "key":  "benchmark-llama",
+                           "name":  "Benchmark - Llama",
+                           "qualifier":  "TRK",
+                           "visibility":  "public",
+                           "lastAnalysisDate":  "2026-09-08T10:11:50+0000",
+                           "managed":  false,
+                           "projectUuid":  "30e26a83-7fac-446c-ae93-f41e5d857492"
+                       }
+                   ]
+}

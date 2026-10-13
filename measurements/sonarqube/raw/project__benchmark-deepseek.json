@@ -1,0 +1,18 @@
+﻿{
+    "paging":  {
+                   "pageIndex":  1,
+                   "pageSize":  100,
+                   "total":  1
+               },
+    "components":  [
+                       {
+                           "key":  "benchmark-deepseek",
+                           "name":  "Benchmark - DeepSeek",
+                           "qualifier":  "TRK",
+                           "visibility":  "public",
+                           "lastAnalysisDate":  "2026-09-08T10:04:46+0000",
+                           "managed":  false,
+                           "projectUuid":  "293fab52-3121-464c-a41e-c0c86e38740a"
+                       }
+                   ]
+}

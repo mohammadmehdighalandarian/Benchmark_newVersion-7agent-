@@ -1,0 +1,35 @@
+{
+    "generated_at_utc":  "2026-09-08T19:31:34.4721724Z",
+    "top_5_rules_global":  [
+                               {
+                                   "rule_key":  "csharpsquid:S1118",
+                                   "title":  "Utility classes should not have public constructors",
+                                   "projects":  "benchmark-gpt, benchmark-deepseek, benchmark-mistral, benchmark-llama",
+                                   "summed_top5_project_counts":  320
+                               },
+                               {
+                                   "rule_key":  "external_roslyn:CS8603",
+                                   "title":  "Possible null reference return.",
+                                   "projects":  "benchmark-deepseek, benchmark-mistral, benchmark-llama",
+                                   "summed_top5_project_counts":  13
+                               },
+                               {
+                                   "rule_key":  "external_roslyn:CS8600",
+                                   "title":  "Converting null literal or possible null value to non-nullable type.",
+                                   "projects":  "benchmark-deepseek, benchmark-llama",
+                                   "summed_top5_project_counts":  6
+                               },
+                               {
+                                   "rule_key":  "external_roslyn:CA1860",
+                                   "title":  "Avoid using \u0027Enumerable.Any()\u0027 extension method",
+                                   "projects":  "benchmark-deepseek, benchmark-llama",
+                                   "summed_top5_project_counts":  4
+                               },
+                               {
+                                   "rule_key":  "external_roslyn:CA1861",
+                                   "title":  "Avoid constant arrays as arguments",
+                                   "projects":  "benchmark-gpt, benchmark-mistral",
+                                   "summed_top5_project_counts":  7
+                               }
+                           ]
+}
