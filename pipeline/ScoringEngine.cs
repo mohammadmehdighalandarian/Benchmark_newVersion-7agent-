@@ -36,7 +36,7 @@ namespace EvaluatedCodeGeneration
     /// <summary>
     /// Normalisation thresholds and component weights. Centralising these
     /// makes the equal-weight choice explicit and lets us run the
-    /// "exclude-correctness" robustness check (RQ3) by flipping one flag.
+    /// "exclude-correctness" robustness check by flipping one flag.
     /// </summary>
     public sealed class ScoringConfig
     {
@@ -46,26 +46,35 @@ namespace EvaluatedCodeGeneration
         public double MaxAcceptableNaming     { get; init; } = 10.0;
         public double PerformanceBaselineNs   { get; init; } = 10000.0;
 
-        // ---- Component weights (must be > 0; normalised internally) ----
-        // Equal weighting by default, but now EXPLICIT and tunable.
+        // ---- Component weights (>= 0; normalised internally) ----
+        // These defaults give the scores defined in the paper (Section 3.6):
+        //   Quality   Q = 50 * (s_Cx + s_Nest),  s_x = 1 - min(x, L_x) / L_x,
+        //             with L_Cx = 15 and L_Nest = 5;
+        //   Composite = mean of correctness, s_Cx, s_Nest and the efficiency
+        //             term 10^4 / (10^4 + t), the last only when t > 0.
+        // Naming carries no weight. The naming check is still computed and
+        // written to the results file, but it mostly counts identifiers that
+        // the prompt fixes (the entry-point name and its parameters), so the
+        // paper does not use it. W_Style = 1 restores the earlier three-term
+        // quality score.
         public double W_Correctness { get; init; } = 1.0;
         public double W_Complexity  { get; init; } = 1.0;
         public double W_Nesting     { get; init; } = 1.0;
-        public double W_Style       { get; init; } = 1.0;
+        public double W_Style       { get; init; } = 0.0;
         public double W_Performance { get; init; } = 1.0;
 
         /// <summary>
-        /// When true, correctness is removed from the composite so the
-        /// Quality axis is purely structural+performance. This is the
-        /// robustness check promised in the paper's Construct Validity
-        /// section (the r=0.075 was partly self-referential because
-        /// Norm_Correctness was one of the five components).
+        /// When true, correctness is removed from the composite, which then
+        /// combines only structure and performance. A composite that
+        /// contains correctness is correlated with correctness by
+        /// construction; the workshop version's r = 0.075 was partly an
+        /// effect of this, and the paper keeps the two scores separate.
         /// </summary>
         public bool ExcludeCorrectnessFromQuality { get; init; } = false;
 
         public static ScoringConfig Default => new ScoringConfig();
 
-        /// <summary>Four-component quality score (no correctness) for RQ3 robustness.</summary>
+        /// <summary>Composite without correctness (structure and performance only).</summary>
         public static ScoringConfig QualityOnly => new ScoringConfig
         {
             ExcludeCorrectnessFromQuality = true
@@ -93,7 +102,8 @@ namespace EvaluatedCodeGeneration
         public bool HasDocumentation { get; set; }
         public bool HasNullChecks { get; set; }
 
-        // Efficiency (BenchmarkDotNet, median across N=100/1000/10000)
+        // Efficiency (BenchmarkDotNet): mean of the per-size medians,
+        // N = 10 and N = 100 in the shipped harnesses.
         public double MedianExecutionTimeNs { get; set; }
         public double AllocatedBytes { get; set; }
     }
@@ -106,7 +116,7 @@ namespace EvaluatedCodeGeneration
         // Three independent COMPASS axes (0..100), reported separately.
         public double CorrectnessScore { get; set; }
         public double EfficiencyScore  { get; set; }
-        public double QualityScore     { get; set; }   // structural+style(+perf)
+        public double QualityScore     { get; set; }   // structural: complexity and nesting
 
         // Normalised sub-components retained for transparency / appendix.
         public double Norm_Correctness { get; set; }
@@ -175,19 +185,21 @@ namespace EvaluatedCodeGeneration
             // When no benchmark data exists, EfficiencyScore is 0 (not unknown).
             r.EfficiencyScore = r.Norm_Performance * 100.0;
 
-            // ---- Quality axis (structural + style, optionally + perf) ----
-            // The "Quality" pillar in COMPASS is independent of correctness.
-            // We report it WITHOUT correctness so the three axes are clean,
-            // matching the COMPASS correctness/efficiency/quality split.
+            // ---- Quality axis (structural) ----
+            // Reported WITHOUT correctness so the three axes stay separate.
+            // With the default weights this is Q = 50 * (s_Cx + s_Nest);
+            // naming enters only if W_Style > 0.
             double qNum = cfg.W_Complexity * r.Norm_Complexity
                         + cfg.W_Nesting    * r.Norm_Nesting
                         + cfg.W_Style      * r.Norm_Style;
             double qDen = cfg.W_Complexity + cfg.W_Nesting + cfg.W_Style;
             r.QualityScore = (qDen > 0 ? qNum / qDen : 0) * 100.0;
 
-            // ---- Composite (explicit weighted mean of the 5 sub-scores) ----
-            // When no benchmark data is available, exclude performance from the
-            // composite denominator so missing data does not penalise the score.
+            // ---- Composite (explicit weighted mean of the sub-scores) ----
+            // With the default weights: correctness, complexity, nesting and
+            // performance. When no benchmark data is available, performance is
+            // left out of the denominator so missing data does not penalise
+            // the score.
             double w_c = cfg.ExcludeCorrectnessFromQuality ? 0.0 : cfg.W_Correctness;
             double perfWeight = hasBenchmarkData ? cfg.W_Performance : 0.0;
             double num = w_c               * r.Norm_Correctness

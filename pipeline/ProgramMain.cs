@@ -216,9 +216,21 @@ public partial class Program
     // Returns per-(taskId, model) pass/fail counts.
     // TestUtils.Reset() is already called inside each generated Run_* method,
     // so GetScore() after Invoke() reflects only that single task/model run.
+    //
+    // UNEXECUTED ASSERTIONS COUNT AS FAILED. Each generated Run_* method wraps
+    // its assertions in one try/catch, so an exception thrown by a solution
+    // stops the remaining assertions and is only printed. The old scoring
+    // divided by the assertions that happened to run, so a solution that
+    // passed two assertions and then threw scored 100%. The expected number
+    // of assertions is now read from the test sources (one TestUtils.Check
+    // call per assertion), and every assertion that did not run counts as
+    // failed. This changes four scores (csharp_5 Mistral, csharp_15 Grok,
+    // csharp_64 Llama, csharp_70 Mistral); the paper uses the corrected
+    // values (Section 3.7, data/correctness_n560.csv).
     static Dictionary<(string taskId, string model), (int passed, int failed)> RunAndScoreTests()
     {
         var results = new Dictionary<(string, string), (int, int)>();
+        var expected = CountExpectedAssertions(Path.Combine(ProjectRoot(), "Solution", "Tests"));
         var assembly = Assembly.GetExecutingAssembly();
         var testClasses = assembly.GetTypes()
             .Where(t => t.Name == "TestRunner" && t.Namespace != null && t.Namespace.StartsWith("Tests."))
@@ -243,22 +255,77 @@ public partial class Program
             foreach (var method in methods)
             {
                 string model = method.Name.Replace("Run_", "");
+                int expectedCount = expected.GetValueOrDefault((taskId, model), 0);
                 try
                 {
                     method.Invoke(instance, null);
                     var score = Tests.Shared.TestUtils.GetScore();
-                    results[(taskId, model)] = (score.Passed, score.Failed);
-                    Console.WriteLine($"  [{taskId}] {model}: {score.Passed} passed, {score.Failed} failed");
+                    int unexecuted = Math.Max(0, expectedCount - score.Passed - score.Failed);
+                    results[(taskId, model)] = (score.Passed, score.Failed + unexecuted);
+                    string note = unexecuted > 0 ? $" ({unexecuted} not executed, counted as failed)" : "";
+                    Console.WriteLine($"  [{taskId}] {model}: {score.Passed} passed, {score.Failed + unexecuted} failed{note}");
                 }
                 catch (Exception ex)
                 {
+                    // The generated methods catch exceptions themselves, so this
+                    // is reached only if one escapes. Assertions that did not
+                    // complete count as failed, as above.
+                    var score = Tests.Shared.TestUtils.GetScore();
+                    int failed = Math.Max(score.Failed + 1, expectedCount - score.Passed);
                     Console.WriteLine($"  [ERROR] {taskId}/{model}: {ex.InnerException?.Message ?? ex.Message}");
-                    results[(taskId, model)] = (0, 1);
+                    results[(taskId, model)] = (score.Passed, failed);
                 }
             }
         }
 
         return results;
+    }
+
+    // Number of TestUtils.Check calls in each generated Run_<model> method,
+    // keyed by (taskId, model). This is the number of assertions the method
+    // runs when nothing throws. The generated tests contain no loops, so
+    // every call runs at most once.
+    static Dictionary<(string taskId, string model), int> CountExpectedAssertions(string testsDir)
+    {
+        var counts = new Dictionary<(string, string), int>();
+        if (!Directory.Exists(testsDir))
+        {
+            Console.WriteLine($"  WARNING: test sources not found at {testsDir}; " +
+                              "assertions that do not run cannot be counted as failed.");
+            return counts;
+        }
+
+        foreach (var file in Directory.GetFiles(testsDir, "Tests_Task_*.cs"))
+        {
+            var root = Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree
+                .ParseText(File.ReadAllText(file)).GetRoot();
+
+            foreach (var runner in root.DescendantNodes()
+                         .OfType<Microsoft.CodeAnalysis.CSharp.Syntax.ClassDeclarationSyntax>()
+                         .Where(c => c.Identifier.Text == "TestRunner"))
+            {
+                string? ns = runner.Ancestors()
+                    .OfType<Microsoft.CodeAnalysis.CSharp.Syntax.BaseNamespaceDeclarationSyntax>()
+                    .FirstOrDefault()?.Name.ToString();
+                if (ns == null || !ns.StartsWith("Tests.", StringComparison.Ordinal)) continue;
+                string taskId = ns.Substring("Tests.".Length);
+
+                foreach (var method in runner.Members
+                             .OfType<Microsoft.CodeAnalysis.CSharp.Syntax.MethodDeclarationSyntax>()
+                             .Where(m => m.Identifier.Text.StartsWith("Run_", StringComparison.Ordinal)))
+                {
+                    int checks = method.DescendantNodes()
+                        .OfType<Microsoft.CodeAnalysis.CSharp.Syntax.InvocationExpressionSyntax>()
+                        .Count(inv => inv.Expression is Microsoft.CodeAnalysis.CSharp.Syntax.MemberAccessExpressionSyntax ma
+                                      && ma.Name.Identifier.Text == "Check"
+                                      && ma.Expression.ToString() == "TestUtils");
+                    counts[(taskId, method.Identifier.Text.Substring("Run_".Length))] = checks;
+                }
+            }
+        }
+
+        Console.WriteLine($"  Expected assertions read from {counts.Count} test method(s).");
+        return counts;
     }
 
     // Traverses up from the executable directory to find the .csproj root,

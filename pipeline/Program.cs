@@ -1,23 +1,21 @@
 ﻿// =====================================================================
-//  Program.cs  —  SCORING PATCH  (revision)
+//  Program.cs  -  result row and scoring helper
 // ---------------------------------------------------------------------
-//  This file contains DROP-IN replacements for the scoring / result-
-//  mapping portion of Program.cs. Paste these members into the Program
-//  class and update the call sites as indicated. It does three things:
+//  The second part of the partial Program class (the driver is in
+//  ProgramMain.cs). It defines the per-solution result row and
+//  BuildScoredRow, which turns the measured values into the scores
+//  through ScoringEngine.Compute:
 //
-//    (A) Builds a fully-populated ScoreInputs per (task, model) from the
-//        REAL correctness (Phase 1) and REAL BenchmarkDotNet median time +
-//        allocations (Phase 3), then calls ScoringEngine.Compute().
-//        -> Fixes Bug 1 (composite no longer averages in two forced zeros)
-//        -> Fixes Bug 2 (efficiency comes from BenchmarkDotNet, not Stopwatch)
-//        -> Fixes Bug 3 (non-compiling rows are Excluded, not scored 0)
+//    (A) Correctness comes from the reflection tests, the static metrics
+//        from CodeEvaluator, and time and allocation from BenchmarkDotNet,
+//        so the composite no longer averages in two forced zeros and
+//        efficiency no longer comes from a Stopwatch loop.
+//    (B) Rows that do not compile are flagged as Excluded instead of being
+//        scored 0.
 //
-//    (B) Adds an optional k>1 multi-run loop so Pass@1 determinism can be
-//        verified empirically (Reviewer 1).
-//
-//    (C) Writes the three independent COMPASS axes (Correctness, Efficiency,
-//        Quality) plus the documented Composite to Excel, with an
-//        Excluded flag column.
+//  SaveToExcelV2 is an older writer that the pipeline no longer calls;
+//  the workbook is written by InitExcelFile and AppendRowsToExcel in
+//  ProgramMain.cs.
 // =====================================================================
 
 using EvaluatedCodeGeneration;
@@ -171,48 +169,3 @@ public partial class Program
         workbook.SaveAs(path);
     }
 }
-
-/*  ------------------------------------------------------------------
-    WIRING INSTRUCTIONS (where to change the existing Program.Main):
-
-    1) Mark the existing `public class Program` as `public partial class
-       Program` so these members merge in. (One word change.)
-
-    2) Replace the Phase-1+Phase-3 result construction. The old loop did:
-
-           row.QualityScore = qualityReport.FinalScore;   // BROKEN
-
-       Instead, collect three dictionaries keyed by (taskId, model):
-           - correctness[(t,m)]  = row.Correctness   (already computed)
-           - report[(t,m)]       = evaluator.Evaluate(aiCode, emptySpec)
-           - timeNs[(t,m)]       = report.ResultStatistics.Mean   (Phase 3)
-           - memBytes[(t,m)]     = GcStats allocated bytes         (Phase 3)
-
-       THEN, after Phase 3 mapping, build final rows:
-
-           var cfg = ScoringConfig.Default;       // equal weights, explicit
-           var finalV2 = new List<FinalResultRowV2>();
-           foreach (var key in report.Keys)
-           {
-               finalV2.Add(BuildScoredRow(
-                   key.taskId, key.model,
-                   report[key],
-                   correctness.GetValueOrDefault(key, 0),
-                   timeNs.GetValueOrDefault(key, 0),
-                   memBytes.GetValueOrDefault(key, 0),
-                   cfg));
-           }
-           SaveToExcelV2(finalV2, excelPath);
-
-       // For the RQ3 robustness check (quality WITHOUT correctness):
-       //   var cfgRobust = ScoringConfig.QualityOnly;
-       //   ... rebuild rows with cfgRobust, save to a second sheet/file.
-
-    3) MULTI-RUN (Reviewer 1, Pass@1 determinism):
-       Wrap Phases 2-3 in `for (int run = 0; run < K; run++)` (e.g. K=5),
-       collect one ScoreResult per run per (task,model), then call
-       ScoringEngine.Aggregate(taskId, model, runsForThatPair) to get
-       mean / median / SD for each axis. Report the SDs in the paper as the
-       empirical determinism evidence (replaces the temperature=0 assumption).
-    ------------------------------------------------------------------ */
-    

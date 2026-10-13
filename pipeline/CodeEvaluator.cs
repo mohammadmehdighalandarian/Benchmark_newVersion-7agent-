@@ -326,6 +326,19 @@ namespace EvaluatedCodeGeneration
             return maxDepth;
         }
 
+        // -----------------------------------------------------------------
+        //  Maximum nesting depth of if, for, foreach, while and do
+        //  statements.
+        //
+        //  An `else if` continues its chain at the same level. Roslyn
+        //  represents it as an IfStatementSyntax inside the ElseClause of the
+        //  previous `if`, and the old rule counted that `if` as one more
+        //  level, so a chain of n `else if` branches reported a depth of
+        //  n + 1. On csharp_34 (a chain of 11 or 12 branches) this gave 13 or
+        //  14 where the real depth is 2. The paper defines nesting depth with
+        //  this correction (Sections 3.5 and 3.7), and it changes 32
+        //  solutions on 12 tasks (data/structural_n560.csv, column `nest`).
+        // -----------------------------------------------------------------
         private int GetNestingDepth(SyntaxNode? node, int depth = 0)
         {
             if (node == null) return depth;
@@ -333,11 +346,15 @@ namespace EvaluatedCodeGeneration
             foreach (var child in node.ChildNodes())
             {
                 int nextDepth = depth;
-                if (child is IfStatementSyntax ||
-                    child is ForStatementSyntax ||
-                    child is ForEachStatementSyntax ||
-                    child is WhileStatementSyntax ||
-                    child is DoStatementSyntax)
+                bool continuesElseIfChain =
+                    child is IfStatementSyntax && child.Parent is ElseClauseSyntax;
+
+                if (!continuesElseIfChain &&
+                    (child is IfStatementSyntax ||
+                     child is ForStatementSyntax ||
+                     child is ForEachStatementSyntax ||
+                     child is WhileStatementSyntax ||
+                     child is DoStatementSyntax))
                     nextDepth++;
                 max = Math.Max(max, GetNestingDepth(child, nextDepth));
             }
