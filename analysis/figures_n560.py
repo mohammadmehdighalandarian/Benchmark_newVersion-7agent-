@@ -30,7 +30,7 @@ d = d.merge(rt[['task', 'model', 'time_ns', 'alloc_B']], on=['task', 'model'], h
 iss = pd.read_csv(os.path.join(ROOT, 'measurements', 'sonarqube', 'sonar_issues.csv'))
 
 def save(fig, name):
-    fig.savefig(os.path.join(OUT, name + '.pdf'), bbox_inches='tight')
+    fig.savefig(os.path.join(OUT, name + '.pdf'), bbox_inches='tight', metadata={'CreationDate': None})  # reproducible bytes
     fig.savefig(os.path.join(OUT, name + '.png'), bbox_inches='tight', dpi=160)
     plt.close(fig)
 
