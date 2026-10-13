@@ -146,3 +146,11 @@ and how each one affects the reported numbers.
 
 Until the journal paper is published, please cite the workshop paper (arXiv:2608.22529).
 `CITATION.cff` gives the authors of this repository.
+
+## License
+
+The code, the scripts and the data produced in this study are released under the MIT
+License (`LICENSE`). Third-party material keeps its own terms: the tasks are derived from
+HumanEval (MIT, `data/external/HumanEval_LICENSE.txt`), the rule descriptions in
+`measurements/sonarqube/raw/rules__*.json` come from SonarSource, and the generated
+solutions were produced with the models' public APIs.

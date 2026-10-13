@@ -12,6 +12,7 @@ authors:
   - family-names: Taromirad
     given-names: Masoumeh
     affiliation: "Amirkabir University of Technology"
+license: MIT
 repository-code: "https://github.com/mohammadmehdighalandarian/Benchmark_newVersion-7agent-"
 keywords:
   - large language models
